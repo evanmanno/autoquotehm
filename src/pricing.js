@@ -1,4 +1,4 @@
-// AutoQuoteMH — rate card and quote math.
+// AutoQuoteHM — rate card and quote math.
 // The values below are SEED defaults only. What a business actually runs on
 // lives in Company Settings (set up during onboarding), persisted to
 // localStorage — these just seed that screen the first time it opens.

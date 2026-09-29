@@ -25,7 +25,7 @@ const STORAGE_KEY = 'quotescapes-draft'
 const COMPANY_STORAGE_KEY = 'quotescapes-company'
 
 // One-time migration from the old VRS-branded storage keys, so switching to
-// the AutoQuoteMH rebrand doesn't wipe out materials/equipment/rates anyone
+// the AutoQuoteHM rebrand doesn't wipe out materials/equipment/rates anyone
 // already entered.
 const LEGACY_STORAGE_KEY = 'vrs-estimator-draft'
 const LEGACY_COMPANY_STORAGE_KEY = 'vrs-estimator-company'
@@ -258,7 +258,7 @@ export default function App() {
               <img src={logoIcon} alt="" />
             </span>
             <span className="brand-text">
-              AutoQuoteMH
+              AutoQuoteHM
               <small>{company.businessName || 'Quote Estimator'}</small>
             </span>
           </div>
@@ -1021,7 +1021,7 @@ function Onboarding({ initial, onSave, onCancel, onReset }) {
               <img src={logoIcon} alt="" />
             </span>
             <span className="brand-text">
-              AutoQuoteMH
+              AutoQuoteHM
               <small>{form.businessName || 'Quote Estimator'}</small>
             </span>
           </div>
@@ -1081,7 +1081,7 @@ function Onboarding({ initial, onSave, onCancel, onReset }) {
             <span className="hero-mark" aria-hidden="true">
               <img src={logoIcon} alt="" />
             </span>
-            <h1>Welcome to AutoQuoteMH</h1>
+            <h1>Welcome to AutoQuoteHM</h1>
             <p>
               Turn a site walk into an accurate, on-brand quote in minutes — right from
               your phone.
@@ -1113,7 +1113,7 @@ function Onboarding({ initial, onSave, onCancel, onReset }) {
         )}
 
         {obStep === 1 && (
-          <Section title="Sign In" hint="Who's using AutoQuoteMH on this device.">
+          <Section title="Sign In" hint="Who's using AutoQuoteHM on this device.">
             <Field label="Your name" required>
               <input
                 value={form.crewMemberName}

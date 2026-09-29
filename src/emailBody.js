@@ -1,6 +1,6 @@
 import { UNIT_LABEL, money, num, qty, serviceById, serviceQuantity } from './pricing'
 
-const SIGNOFF = 'Sent from AutoQuoteMH.'
+const SIGNOFF = 'Sent from AutoQuoteHM.'
 
 const rule = '='.repeat(46)
 const thin = '-'.repeat(46)
