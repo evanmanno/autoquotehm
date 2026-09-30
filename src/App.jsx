@@ -18,17 +18,17 @@ import {
 } from './pricing'
 import { isConfigured, sendQuote } from './email'
 import logoIcon from './assets/logo-icon.png'
+import { getInitialSession, onAuthChange, signIn, signOut, signUp } from './lib/auth'
+import { deleteCompany, fetchCompany, saveCompany } from './lib/companyStore'
 
 const STEPS = ['Property', 'Services', 'Job Details', 'Quote']
 
 const STORAGE_KEY = 'quotescapes-draft'
-const COMPANY_STORAGE_KEY = 'quotescapes-company'
 
-// One-time migration from the old VRS-branded storage keys, so switching to
-// the AutoQuoteHM rebrand doesn't wipe out materials/equipment/rates anyone
-// already entered.
+// One-time migration from the old VRS-branded storage key for the local job
+// draft. Business profile/materials/equipment now live in the database
+// (see src/lib/companyStore.js), not localStorage.
 const LEGACY_STORAGE_KEY = 'vrs-estimator-draft'
-const LEGACY_COMPANY_STORAGE_KEY = 'vrs-estimator-company'
 
 const emptyCompany = {
   // Sign In — the person using the app on this device
@@ -50,23 +50,6 @@ const emptyCompany = {
   defaultMargin: PROFIT_MARGIN,
   materials: SERVICES.map((s) => ({ ...s })),
   equipment: EQUIPMENT.map((e) => ({ ...e })),
-}
-
-function loadCompany() {
-  try {
-    let raw = localStorage.getItem(COMPANY_STORAGE_KEY)
-    if (!raw) {
-      const legacy = localStorage.getItem(LEGACY_COMPANY_STORAGE_KEY)
-      if (legacy) {
-        raw = legacy
-        localStorage.setItem(COMPANY_STORAGE_KEY, legacy)
-      }
-    }
-    const saved = JSON.parse(raw)
-    return saved ? { ...emptyCompany, ...saved } : null
-  } catch {
-    return null
-  }
 }
 
 const emptyJob = {
@@ -107,7 +90,10 @@ function loadDraft() {
 
 export default function App() {
   const [step, setStep] = useState(0)
-  const [company, setCompany] = useState(loadCompany)
+  const [session, setSession] = useState(null)
+  const [authReady, setAuthReady] = useState(false)
+  const [company, setCompany] = useState(null)
+  const [companyLoading, setCompanyLoading] = useState(true)
   const [editingCompany, setEditingCompany] = useState(false)
   const [onboardingKey, setOnboardingKey] = useState(0)
   const [job, setJob] = useState(loadDraft)
@@ -121,9 +107,57 @@ export default function App() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(job))
   }, [job])
 
+  // Track the logged-in account. Each business signs in on its own, from
+  // any device -- this replaces the old "whatever's in this browser" model.
   useEffect(() => {
-    if (company) localStorage.setItem(COMPANY_STORAGE_KEY, JSON.stringify(company))
-  }, [company])
+    let active = true
+    getInitialSession()
+      .then((s) => {
+        if (!active) return
+        setSession(s)
+        setAuthReady(true)
+      })
+      .catch((err) => {
+        console.error('Failed to load session:', err)
+        if (!active) return
+        setSession(null)
+        setAuthReady(true)
+      })
+    const unsubscribe = onAuthChange((s) => {
+      setSession(s)
+      setAuthReady(true)
+    })
+    return () => {
+      active = false
+      unsubscribe()
+    }
+  }, [])
+
+  // Load this business's profile/materials/equipment from the database
+  // whenever the logged-in account changes.
+  useEffect(() => {
+    if (!session) {
+      setCompany(null)
+      setCompanyLoading(false)
+      return
+    }
+    let active = true
+    setCompanyLoading(true)
+    fetchCompany()
+      .then((c) => {
+        if (active) setCompany(c)
+      })
+      .catch((err) => {
+        console.error('Failed to load company:', err)
+        if (active) setCompany(null)
+      })
+      .finally(() => {
+        if (active) setCompanyLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [session])
 
   useEffect(() => {
     topRef.current?.scrollIntoView({ block: 'start' })
@@ -208,11 +242,12 @@ export default function App() {
     setStep(0)
   }
 
-  const resetAll = () => {
-    localStorage.removeItem(STORAGE_KEY)
-    localStorage.removeItem(COMPANY_STORAGE_KEY)
-    localStorage.removeItem(LEGACY_STORAGE_KEY)
-    localStorage.removeItem(LEGACY_COMPANY_STORAGE_KEY)
+  const signOutNow = async () => {
+    try {
+      await signOut()
+    } catch (err) {
+      console.error('Sign out failed:', err)
+    }
     photos.forEach((p) => URL.revokeObjectURL(p.url))
     setPhotos([])
     setJob(emptyJob)
@@ -220,18 +255,43 @@ export default function App() {
     setSendError('')
     setStep(0)
     setEditingCompany(false)
-    setCompany(null)
     setOnboardingKey((k) => k + 1)
   }
 
-  const quickReset = () => {
-    if (
-      window.confirm(
-        'Reset all data and go back to Welcome? This clears everything and cannot be undone.',
-      )
-    ) {
-      resetAll()
+  const quickSignOut = () => {
+    if (window.confirm('Sign out of AutoQuoteHM on this device?')) {
+      signOutNow()
     }
+  }
+
+  // Permanently deletes this business's row from the database, then signs
+  // out. Distinct from quickSignOut -- this one can't be undone.
+  const deleteAllData = async () => {
+    if (session) {
+      try {
+        await deleteCompany(session.user.id)
+      } catch (err) {
+        console.error('Delete failed:', err)
+      }
+    }
+    await signOutNow()
+  }
+
+  if (!authReady || (session && companyLoading)) {
+    return (
+      <div className="app">
+        <div className="hero">
+          <span className="hero-mark" aria-hidden="true">
+            <img src={logoIcon} alt="" />
+          </span>
+          <p>Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!session) {
+    return <Login />
   }
 
   if (!company || editingCompany) {
@@ -239,12 +299,22 @@ export default function App() {
       <Onboarding
         key={onboardingKey}
         initial={company ?? emptyCompany}
-        onSave={(profile) => {
-          setCompany(profile)
-          setEditingCompany(false)
+        onSave={async (profile) => {
+          try {
+            const saved = await saveCompany(profile, session.user.id)
+            setCompany(saved)
+            setEditingCompany(false)
+          } catch (err) {
+            console.error('Save failed:', err)
+            alert(
+              err?.message ||
+                'Could not save your business info. Check your connection and try again.',
+            )
+          }
         }}
         onCancel={company ? () => setEditingCompany(false) : undefined}
-        onReset={company ? resetAll : undefined}
+        onReset={company ? deleteAllData : undefined}
+        onSignOut={quickSignOut}
       />
     )
   }
@@ -263,8 +333,8 @@ export default function App() {
             </span>
           </div>
           <div className="topbar-actions">
-            <button type="button" className="topbar-reset" onClick={quickReset}>
-              Reset
+            <button type="button" className="topbar-reset" onClick={quickSignOut}>
+              Sign Out
             </button>
             <button
               type="button"
@@ -883,9 +953,146 @@ function Quote({ job, est, company, photoCount, sendState, sendError, onSend, on
 
 const FORM_STEPS = ['Sign In', 'Business', 'Materials', 'Equipment', 'Rates', 'Margins']
 
-function Onboarding({ initial, onSave, onCancel, onReset }) {
+function Login() {
+  const [mode, setMode] = useState('signin') // signin | signup
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [checkEmail, setCheckEmail] = useState(false)
+
+  const submit = async (e) => {
+    e.preventDefault()
+    if (busy) return
+    setError('')
+    setBusy(true)
+    try {
+      if (mode === 'signup') {
+        const { session } = await signUp(email.trim(), password)
+        if (!session) {
+          setCheckEmail(true)
+        }
+      } else {
+        await signIn(email.trim(), password)
+      }
+    } catch (err) {
+      setError(err?.message || 'Something went wrong. Try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (checkEmail) {
+    return (
+      <div className="app">
+        <header className="topbar">
+          <div className="topbar-row">
+            <div className="brand">
+              <span className="mark">
+                <img src={logoIcon} alt="" />
+              </span>
+              <span className="brand-text">AutoQuoteHM</span>
+            </div>
+          </div>
+        </header>
+        <main className="content">
+          <div className="hero">
+            <span className="hero-mark" aria-hidden="true">
+              <img src={logoIcon} alt="" />
+            </span>
+            <h1>Check your email</h1>
+            <p>
+              We sent a confirmation link to {email}. Click it, then come back here and
+              sign in.
+            </p>
+            <button
+              type="button"
+              className="btn primary"
+              onClick={() => {
+                setCheckEmail(false)
+                setMode('signin')
+              }}
+            >
+              Back to sign in
+            </button>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  return (
+    <div className="app">
+      <header className="topbar">
+        <div className="topbar-row">
+          <div className="brand">
+            <span className="mark">
+              <img src={logoIcon} alt="" />
+            </span>
+            <span className="brand-text">AutoQuoteHM</span>
+          </div>
+        </div>
+      </header>
+      <main className="content">
+        <div className="hero">
+          <span className="hero-mark" aria-hidden="true">
+            <img src={logoIcon} alt="" />
+          </span>
+          <h1>{mode === 'signup' ? 'Create your account' : 'Welcome back'}</h1>
+          <p>
+            {mode === 'signup'
+              ? "One login for your whole business \u2014 use it on any device."
+              : 'Sign in to your AutoQuoteHM account.'}
+          </p>
+          <form className="auth-form" onSubmit={submit}>
+            <Field label="Email" required>
+              <input
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@yourbusiness.com"
+              />
+            </Field>
+            <Field label="Password" required>
+              <input
+                type="password"
+                required
+                minLength={6}
+                autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={mode === 'signup' ? 'At least 6 characters' : ''}
+              />
+            </Field>
+            {error && <p className="auth-error">{error}</p>}
+            <button type="submit" className="btn primary auth-submit" disabled={busy}>
+              {busy ? 'Please wait...' : mode === 'signup' ? 'Create account' : 'Sign in'}
+            </button>
+          </form>
+          <button
+            type="button"
+            className="link-plain"
+            onClick={() => {
+              setMode((m) => (m === 'signup' ? 'signin' : 'signup'))
+              setError('')
+            }}
+          >
+            {mode === 'signup'
+              ? 'Already have an account? Sign in'
+              : "New here? Create an account"}
+          </button>
+        </div>
+      </main>
+    </div>
+  )
+}
+
+function Onboarding({ initial, onSave, onCancel, onReset, onSignOut }) {
   const [obStep, setObStep] = useState(onCancel ? 1 : 0)
   const [confirmReset, setConfirmReset] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(() => ({
     crewMemberName: initial.crewMemberName,
     yourEmail: initial.yourEmail ?? '',
@@ -939,10 +1146,12 @@ function Onboarding({ initial, onSave, onCancel, onReset }) {
 
   const canSave = form.businessName.trim() !== '' && form.crewMemberName.trim() !== ''
 
-  const save = () => {
-    if (!canSave) return
+  const save = async () => {
+    if (!canSave || saving) return
     const pct = Math.min(70, Math.max(10, num(form.marginPct) || 52))
-    onSave({
+    setSaving(true)
+    try {
+      await onSave({
       crewMemberName: form.crewMemberName.trim(),
       yourEmail: form.yourEmail.trim(),
       yourPhone: form.yourPhone.trim(),
@@ -966,10 +1175,13 @@ function Onboarding({ initial, onSave, onCancel, onReset }) {
           rate: m.unit === 'tbd' ? undefined : num(m.rate) || 0,
           note: m.note?.trim() || undefined,
         })),
-      equipment: form.equipment
-        .filter((e) => e.name.trim() !== '')
-        .map((e) => ({ id: e.id, name: e.name.trim(), rate: num(e.rate) || 0 })),
-    })
+        equipment: form.equipment
+          .filter((e) => e.name.trim() !== '')
+          .map((e) => ({ id: e.id, name: e.name.trim(), rate: num(e.rate) || 0 })),
+      })
+    } finally {
+      setSaving(false)
+    }
   }
 
   const isLast = obStep === FORM_STEPS.length
@@ -1005,9 +1217,11 @@ function Onboarding({ initial, onSave, onCancel, onReset }) {
     obStep === 0
       ? 'Get started'
       : isLast
-        ? onCancel
-          ? 'Save changes'
-          : 'Start quoting'
+        ? saving
+          ? 'Saving...'
+          : onCancel
+            ? 'Save changes'
+            : 'Start quoting'
         : 'Next'
 
   const backLabel = obStep === 1 && onCancel ? 'Cancel' : 'Back'
@@ -1025,21 +1239,9 @@ function Onboarding({ initial, onSave, onCancel, onReset }) {
               <small>{form.businessName || 'Quote Estimator'}</small>
             </span>
           </div>
-          {onReset && (
-            <button
-              type="button"
-              className="topbar-reset"
-              onClick={() => {
-                if (
-                  window.confirm(
-                    'Reset all data and go back to Welcome? This clears everything and cannot be undone.',
-                  )
-                ) {
-                  onReset()
-                }
-              }}
-            >
-              Reset
+          {onSignOut && (
+            <button type="button" className="topbar-reset" onClick={onSignOut}>
+              Sign Out
             </button>
           )}
         </div>
@@ -1376,13 +1578,14 @@ function Onboarding({ initial, onSave, onCancel, onReset }) {
                     className="link-danger"
                     onClick={() => setConfirmReset(true)}
                   >
-                    Reset all data
+                    Delete all my data
                   </button>
                 ) : (
                   <div className="danger-confirm">
                     <p>
-                      This clears your business info, contacts, materials, equipment and
-                      rates, and starts over from Welcome. This can't be undone.
+                      This permanently deletes your business info, contacts, materials,
+                      equipment and rates from AutoQuoteHM's servers, then signs you out.
+                      This can't be undone.
                     </p>
                     <div className="row">
                       <button
@@ -1413,7 +1616,7 @@ function Onboarding({ initial, onSave, onCancel, onReset }) {
         <button
           type="button"
           className="btn primary"
-          disabled={obStep > 0 && (isLast ? !canSave : !canAdvance)}
+          disabled={obStep > 0 && (isLast ? !canSave || saving : !canAdvance)}
           onClick={goPrimary}
         >
           {primaryLabel}

@@ -265,6 +265,7 @@ h3 {
 input[type='text'],
 input[type='tel'],
 input[type='email'],
+input[type='password'],
 textarea {
   width: 100%;
   padding: 13px 14px;
@@ -582,6 +583,43 @@ textarea::placeholder {
   flex: 1;
   background: #c4453a;
   color: #fff;
+}
+
+/* ---------- auth ---------- */
+
+.auth-form {
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.auth-submit {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.auth-error {
+  margin: -4px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #eb8b83;
+}
+
+.link-plain {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-hi);
+}
+
+.link-plain:active {
+  opacity: 0.7;
 }
 
 /* ---------- onboarding hero ---------- */
