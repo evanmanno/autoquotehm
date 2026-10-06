@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import './settings.css'
+import { getTheme, setTheme } from './lib/theme'
 
 // Small stroke icons (24x24 grid) so the settings list reads like an app.
 const ICONS = {
@@ -83,6 +84,7 @@ export function SettingsHub({
   onDeleteAll,
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [theme, setThemeState] = useState(getTheme)
   const name = me?.displayName || company.crewMemberName || email || 'You'
   const initial = (name || '?').trim().charAt(0).toUpperCase()
   const materialCount = (company.materials ?? []).length
@@ -158,6 +160,27 @@ export function SettingsHub({
           }
           onClick={onOpenTeam}
         />
+      </Group>
+
+      <Group title="Appearance">
+        <div className="s-theme" role="radiogroup" aria-label="Theme">
+          {[
+            ['dark', 'Dark'],
+            ['light', 'Light'],
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="radio"
+              aria-checked={theme === id}
+              className={`s-theme-opt ${theme === id ? 'on' : ''}`}
+              onClick={() => setThemeState(setTheme(id))}
+            >
+              <span className={`s-theme-swatch ${id}`} aria-hidden="true" />
+              {label}
+            </button>
+          ))}
+        </div>
       </Group>
 
       <Group title="General settings">

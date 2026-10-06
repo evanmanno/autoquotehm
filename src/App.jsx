@@ -1870,7 +1870,7 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                 placeholder="Whoever's on-site today"
               />
             </Field>
-            <div className="row">
+            <>
               <Field label="Your email">
                 <input
                   value={form.yourEmail}
@@ -1889,7 +1889,7 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                   inputMode="tel"
                 />
               </Field>
-            </div>
+            </>
           </Section>
         )}
 
@@ -1897,32 +1897,30 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
           <>
             <Section
               title="What you do"
-              hint="Adds a starter set of services and equipment for that trade — edit or remove anything you don't need."
+              hint="Pick your trades. We add starter services and equipment you can edit later."
             >
-              <div className="service-list">
+              <div className="chip-grid">
                 {INDUSTRIES.map((ind) => {
                   const on = form.industries.includes(ind.id)
                   return (
                     <button
                       key={ind.id}
                       type="button"
-                      className={`service ${on ? 'on' : ''}`}
+                      className={`chip ${on ? 'on' : ''}`}
                       onClick={() => toggleIndustry(ind.id)}
                       aria-pressed={on}
                     >
-                      <span className="check" aria-hidden="true">
+                      <span className="chip-check" aria-hidden="true">
                         {on ? '✓' : ''}
                       </span>
-                      <span className="service-text">
-                        <strong>{ind.name}</strong>
-                      </span>
+                      {ind.name}
                     </button>
                   )
                 })}
               </div>
             </Section>
 
-            <Section title="Business" hint="The business these quotes go out under.">
+            <Section title="Business & branding" hint="Shown at the top of every quote you send.">
               <Field label="Business name" required>
                 <input
                   value={form.businessName}
@@ -1937,43 +1935,53 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                   placeholder="142 Depot St, Littleton MA"
                 />
               </Field>
+              <div className="brand-row">
+                <div className="field">
+                  <span className="label">Logo</span>
+                  <div className="logo-row">
+                    {form.logoUrl && <img src={form.logoUrl} alt="" className="logo-preview" />}
+                    <label className="btn ghost logo-upload-btn">
+                      {logoUploading ? 'Uploading...' : form.logoUrl ? 'Change' : 'Upload'}
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        hidden
+                        disabled={logoUploading}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) handleLogoFile(file)
+                          e.target.value = ''
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+                <label className="field">
+                  <span className="label">Brand color</span>
+                  <span className="color-chip">
+                    <input
+                      type="color"
+                      className="color-input"
+                      value={form.brandColor}
+                      onChange={(e) => setField('brandColor')(e.target.value)}
+                    />
+                    <span className="color-hex">{String(form.brandColor || '').toUpperCase()}</span>
+                  </span>
+                </label>
+              </div>
+              {logoError && <p className="auth-error">{logoError}</p>}
             </Section>
 
-            <Section title="Branding" hint="Shown on the PDF quotes you send customers.">
-              <Field label="Logo">
-                <div className="logo-row">
-                  {form.logoUrl && <img src={form.logoUrl} alt="" className="logo-preview" />}
-                  <label className="btn ghost logo-upload-btn">
-                    {logoUploading ? 'Uploading...' : form.logoUrl ? 'Change logo' : 'Upload logo'}
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      hidden
-                      disabled={logoUploading}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0]
-                        if (file) handleLogoFile(file)
-                        e.target.value = ''
-                      }}
-                    />
-                  </label>
-                </div>
-                {logoError && <p className="auth-error">{logoError}</p>}
-              </Field>
-              <Field label="Brand color">
+            <Section title="Send quotes to" hint="Who gets each completed quote by email.">
+              <Field label="Contact email" required>
                 <input
-                  type="color"
-                  className="color-input"
-                  value={form.brandColor}
-                  onChange={(e) => setField('brandColor')(e.target.value)}
+                  value={form.contactEmail}
+                  onChange={(e) => setField('contactEmail')(e.target.value)}
+                  placeholder="office@yourbusiness.com"
+                  type="email"
+                  inputMode="email"
                 />
               </Field>
-            </Section>
-
-            <Section
-              title="Quotes go to"
-              hint="Who receives each completed quote by email."
-            >
               <div className="row">
                 <Field label="Contact name">
                   <input
@@ -1992,15 +2000,6 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                   />
                 </Field>
               </div>
-              <Field label="Contact email" required>
-                <input
-                  value={form.contactEmail}
-                  onChange={(e) => setField('contactEmail')(e.target.value)}
-                  placeholder="office@yourbusiness.com"
-                  type="email"
-                  inputMode="email"
-                />
-              </Field>
             </Section>
           </>
         )}
@@ -2221,45 +2220,55 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
         )}
 
         {obStep === 6 && (
-          <>
-            <Section title="Labor">
-              <Field label="Labor rate (per hour, per crew member)">
+          <Section title="Labor, travel & disposal" hint="What you charge for time, driving and dump runs.">
+            <div className="set-rows">
+              <div className="set-row">
+                <div className="set-text">
+                  <strong>Labor rate</strong>
+                  <small>Per hour, per crew member</small>
+                </div>
                 <NumInput
                   value={form.laborRate}
                   onChange={setField('laborRate')}
                   placeholder="60"
                   suffix="$/hr"
                 />
-              </Field>
-            </Section>
-
-            <Section title="Travel & Fuel">
-              <Field label="Mileage rate (round trip)">
+              </div>
+              <div className="set-row">
+                <div className="set-text">
+                  <strong>Mileage rate</strong>
+                  <small>Round trip to the job</small>
+                </div>
                 <NumInput
                   value={form.mileageRate}
                   onChange={setField('mileageRate')}
                   placeholder="0.75"
                   suffix="$/mi"
                 />
-              </Field>
-            </Section>
-
-            <Section title="Disposal">
-              <Field label="Dump / transfer station fee">
+              </div>
+              <div className="set-row">
+                <div className="set-text">
+                  <strong>Dump fee</strong>
+                  <small>Transfer station, per load</small>
+                </div>
                 <NumInput
                   value={form.dumpFee}
                   onChange={setField('dumpFee')}
                   placeholder="65"
                   suffix="$/load"
                 />
-              </Field>
-            </Section>
-          </>
+              </div>
+            </div>
+          </Section>
         )}
 
         {obStep === 7 && (
-          <Section title="Margin & Minimums">
-            <Field label="Default target margin">
+          <Section title="Margins, minimums & tax" hint="How your prices are built from your costs.">
+            <div className="margin-card">
+              <div className="set-text">
+                <strong>Target margin</strong>
+                <small>Profit built into every quote</small>
+              </div>
               <div className="margin-row">
                 <input
                   type="range"
@@ -2268,44 +2277,49 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                   step="1"
                   value={form.marginPct}
                   onChange={(e) => setField('marginPct')(e.target.value)}
+                  aria-label="Target margin"
                 />
                 <span className="margin-value">{form.marginPct}%</span>
               </div>
-            </Field>
-            <div className="row">
-              <Field label="Minimum job charge">
+            </div>
+            <div className="set-rows">
+              <div className="set-row">
+                <div className="set-text">
+                  <strong>Minimum job charge</strong>
+                  <small>Smallest quote you'll send</small>
+                </div>
                 <NumInput
                   value={form.minJobCharge}
                   onChange={setField('minJobCharge')}
                   placeholder="250"
                   suffix="$"
                 />
-              </Field>
-              <Field label="Trip / show-up minimum">
+              </div>
+              <div className="set-row">
+                <div className="set-text">
+                  <strong>Trip minimum</strong>
+                  <small>Saved for reference, not applied to quotes yet</small>
+                </div>
                 <NumInput
                   value={form.tripMinimum}
                   onChange={setField('tripMinimum')}
                   placeholder="0"
                   suffix="$"
                 />
-              </Field>
+              </div>
+              <div className="set-row">
+                <div className="set-text">
+                  <strong>Sales tax</strong>
+                  <small>Optional. Shows as its own line on the PDF</small>
+                </div>
+                <NumInput
+                  value={form.salesTaxPct}
+                  onChange={setField('salesTaxPct')}
+                  placeholder="0"
+                  suffix="%"
+                />
+              </div>
             </div>
-            <Field label="Sales tax on quotes (optional)">
-              <NumInput
-                value={form.salesTaxPct}
-                onChange={setField('salesTaxPct')}
-                placeholder="0"
-                suffix="%"
-              />
-            </Field>
-            <p className="subgroup-hint">
-              Shows as its own line on the customer PDF, added on top of your quote price.
-              Leave blank for no tax line.
-            </p>
-            <p className="subgroup-hint">
-              Trip minimum is stored here but not yet applied automatically — say the word
-              if you want a rule for when it kicks in.
-            </p>
 
             {onReset && (
               <div className="danger-zone">
