@@ -1,0 +1,292 @@
+/* Settings tab + bottom tab bar. */
+
+.tabbar {
+  position: sticky;
+  bottom: 0;
+  z-index: 7;
+  display: flex;
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  background: rgba(13, 15, 17, 0.94);
+  backdrop-filter: blur(14px);
+  border-top: 1px solid var(--line);
+}
+
+.tabbar button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 4px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.tabbar button.on {
+  color: var(--accent-hi);
+}
+
+.tabbar svg {
+  width: 23px;
+  height: 23px;
+}
+
+/* Wizard Back / Next bar sits just above the tab bar. */
+.has-tabbar .footer {
+  bottom: calc(56px + env(safe-area-inset-bottom));
+  padding-bottom: 12px;
+}
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.s-profile {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.s-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--accent-dim);
+  border: 1px solid rgba(52, 164, 104, 0.5);
+  color: var(--accent-hi);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.s-profile-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.s-profile-text strong {
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+
+.s-profile-text small {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.s-profile-text .pill {
+  align-self: flex-start;
+  margin-top: 3px;
+}
+
+.s-group h3 {
+  margin: 0 0 8px 4px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.s-list {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.s-row {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  width: 100%;
+  padding: 14px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  text-align: left;
+  color: var(--text);
+}
+
+.s-row:last-child {
+  border-bottom: 0;
+}
+
+.s-row:active:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.s-row:disabled {
+  opacity: 0.55;
+}
+
+.s-row-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--accent-hi);
+}
+
+.s-row.danger .s-row-icon {
+  color: #eb8b83;
+}
+
+.s-row.danger strong {
+  color: #eb8b83;
+}
+
+.s-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.s-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.s-row-text strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.s-row-text small {
+  font-size: 12.5px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.s-chev {
+  flex: none;
+  color: var(--muted);
+}
+
+.s-chev .s-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.s-badge {
+  flex: none;
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.s-confirm {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.s-confirm p {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+.s-confirm-row {
+  display: flex;
+  gap: 10px;
+}
+
+.s-back {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 2px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--accent-hi);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.s-back-chev {
+  display: inline-flex;
+  transform: rotate(180deg);
+}
+
+.s-back-chev .s-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.s-title {
+  margin: -6px 0 0;
+  font-size: 22px;
+}
+
+/* ---------- "Services you offer" editor ---------- */
+
+.svc-add {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.svc-add-btn {
+  flex: none;
+  padding: 12px;
+}
+
+.svc-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.svc-row input {
+  grid-column: 1 / 2;
+}
+
+.svc-row .edit-remove {
+  grid-column: 2 / 3;
+  grid-row: 1 / 2;
+}
+
+.svc-move {
+  grid-column: 1 / 3;
+  font-size: 12.5px;
+  padding: 8px 10px;
+}
+
+.svc-count {
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--accent-dim);
+  color: var(--accent-hi);
+  font-size: 11px;
+  font-weight: 700;
+}

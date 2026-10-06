@@ -92,8 +92,24 @@ export const INDUSTRY_EQUIPMENT = {
   ],
 }
 
+// Hardscape & construction starters. Part of the Landscaping trade too, so a
+// landscape company sees all three tabs; the standalone Hardscaping trade seeds
+// the same list.
+export const HARDSCAPE_SERVICES = [
+  { id: 'hardscape-patio', name: 'Paver Patio', unit: 'sqft', rate: 18, note: 'material + install', category: 'hardscape' },
+  { id: 'hardscape-natural-patio', name: 'Natural Stone / Flagstone Patio', unit: 'sqft', rate: 28, note: 'material + install', category: 'hardscape' },
+  { id: 'hardscape-walkway', name: 'Paver Walkway', unit: 'sqft', rate: 16, note: 'material + install', category: 'hardscape' },
+  { id: 'hardscape-driveway', name: 'Paver Driveway', unit: 'sqft', rate: 20, note: 'material + install', category: 'hardscape' },
+  { id: 'hardscape-wall', name: 'Retaining Wall', unit: 'linear-ft', rate: 45, note: 'material + install', category: 'hardscape' },
+  { id: 'hardscape-seatwall', name: 'Seat Wall', unit: 'linear-ft', rate: 55, note: 'material + install', category: 'hardscape' },
+  { id: 'hardscape-steps', name: 'Stone / Paver Steps', unit: 'each', rate: 150, note: 'per step', category: 'hardscape' },
+  { id: 'hardscape-edging', name: 'Paver / Stone Edging', unit: 'linear-ft', rate: 9, category: 'hardscape' },
+  { id: 'hardscape-base', name: 'Excavation & Base Prep', unit: 'sqft', rate: 4, note: 'dig + compacted base', category: 'hardscape' },
+  { id: 'hardscape-firepit', name: 'Fire Pit Installation', unit: 'tbd', category: 'hardscape' },
+]
+
 export const INDUSTRY_SERVICES = {
-  landscaping: SERVICES,
+  landscaping: [...SERVICES, ...HARDSCAPE_SERVICES],
   lighting: [
     {
       id: 'lighting-roofline',
@@ -116,13 +132,7 @@ export const INDUSTRY_SERVICES = {
     { id: 'window-track', name: 'Track & Sill Detail', unit: 'each', rate: 4, category: 'window-cleaning' },
     { id: 'window-hard-water', name: 'Hard Water Stain Removal', unit: 'tbd', category: 'window-cleaning' },
   ],
-  hardscaping: [
-    { id: 'hardscape-patio', name: 'Paver Patio Installation', unit: 'sqft', rate: 18, note: 'material + install', category: 'hardscape' },
-    { id: 'hardscape-walkway', name: 'Paver Walkway', unit: 'sqft', rate: 16, note: 'material + install', category: 'hardscape' },
-    { id: 'hardscape-wall', name: 'Retaining Wall', unit: 'linear-ft', rate: 45, note: 'material + install', category: 'hardscape' },
-    { id: 'hardscape-edging', name: 'Paver / Stone Edging', unit: 'linear-ft', rate: 9, category: 'hardscape' },
-    { id: 'hardscape-firepit', name: 'Fire Pit Installation', unit: 'tbd', category: 'hardscape' },
-  ],
+  hardscaping: HARDSCAPE_SERVICES,
   'pressure-washing': [
     { id: 'pw-driveway', name: 'Driveway / Concrete', unit: 'sqft', rate: 0.25, category: 'pressure-washing' },
     { id: 'pw-siding', name: 'House Siding (soft wash)', unit: 'sqft', rate: 0.3, category: 'pressure-washing' },
@@ -149,8 +159,8 @@ export const INDUSTRY_SERVICES = {
 // starter service with the same id. Anything else lands in "Other".
 export const CATEGORIES = [
   { id: 'maintenance', name: 'Maintenance' },
-  { id: 'construction', name: 'Landscape Construction' },
-  { id: 'hardscape', name: 'Hardscape' },
+  { id: 'construction', name: 'Planting & Installs' },
+  { id: 'hardscape', name: 'Hardscape & Construction' },
   { id: 'snow', name: 'Snow & Ice' },
   { id: 'lighting', name: 'Lighting' },
   { id: 'window-cleaning', name: 'Window Cleaning' },

@@ -35,7 +35,9 @@ import {
   saveQuote,
 } from './lib/teamStore'
 import { SavedQuotes, Team } from './Team'
+import { SettingsHub, SettingsPage } from './Settings'
 import './team.css'
+import './settings.css'
 
 const STEPS = ['Property', 'Services', 'Job Details', 'Quote']
 
@@ -122,7 +124,9 @@ export default function App() {
   const [sendState, setSendState] = useState('idle') // idle | sending | sent | error
   const [sendError, setSendError] = useState('')
   const [pdfState, setPdfState] = useState('idle') // idle | generating
-  const [view, setView] = useState('new') // new | quotes | team
+  const [view, setView] = useState('new') // new | quotes | settings
+  const [settingsPage, setSettingsPage] = useState(null) // null (the list) | 'team'
+  const [editStep, setEditStep] = useState(1)
   const [me, setMe] = useState(null) // this login's row in the company's team
   const [savedQuoteId, setSavedQuoteId] = useState(null)
   const [saveState, setSaveState] = useState('idle') // idle | saving | saved | error
@@ -400,6 +404,12 @@ export default function App() {
     setOnboardingKey((k) => k + 1)
   }
 
+  const openEditor = (startAt) => {
+    setEditStep(startAt)
+    setOnboardingKey((k) => k + 1)
+    setEditingCompany(true)
+  }
+
   const quickSignOut = () => {
     if (window.confirm('Sign out of AutoQuoteHM on this device?')) {
       signOutNow()
@@ -501,6 +511,7 @@ export default function App() {
           }
         }}
         onCancel={company ? () => setEditingCompany(false) : undefined}
+        startStep={editStep}
         onReset={company ? deleteAllData : undefined}
         onSignOut={quickSignOut}
         ownerId={session?.user?.id}
@@ -509,7 +520,7 @@ export default function App() {
   }
 
   return (
-    <div className="app">
+    <div className="app has-tabbar">
       <header className="topbar" ref={topRef}>
         <div className="topbar-row">
           <div className="brand">
@@ -521,36 +532,7 @@ export default function App() {
               <small>{company.businessName || 'Quote Estimator'}</small>
             </span>
           </div>
-          <div className="topbar-actions">
-            <button type="button" className="topbar-reset" onClick={quickSignOut}>
-              Sign Out
-            </button>
-            <button
-              type="button"
-              className="profile-btn"
-              onClick={() => (isOwner ? setEditingCompany(true) : setView('team'))}
-            >
-              {preparer.name || 'Profile'}
-            </button>
-          </div>
         </div>
-
-        <nav className="nav-tabs" aria-label="Sections">
-          {[
-            ['new', 'New quote'],
-            ['quotes', 'Saved quotes'],
-            ['team', 'Team'],
-          ].map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              className={`nav-tab ${view === id ? 'on' : ''}`}
-              onClick={() => setView(id)}
-            >
-              {label}
-            </button>
-          ))}
-        </nav>
 
         {view === 'new' && (
         <div className="progress">
@@ -586,14 +568,28 @@ export default function App() {
             onOpen={openSavedQuote}
           />
         )}
-        {view === 'team' && (
-          <Team
+        {view === 'settings' && settingsPage === null && (
+          <SettingsHub
             company={company}
-            isOwner={isOwner}
             me={me}
-            userId={session.user.id}
-            onProfileSaved={(p) => setMe((m) => (m ? { ...m, ...p } : m))}
+            isOwner={isOwner}
+            email={session.user.email}
+            onEdit={openEditor}
+            onOpenTeam={() => setSettingsPage('team')}
+            onSignOut={quickSignOut}
+            onDeleteAll={deleteAllData}
           />
+        )}
+        {view === 'settings' && settingsPage === 'team' && (
+          <SettingsPage title={isOwner ? 'Team & invites' : 'Your team'} onBack={() => setSettingsPage(null)}>
+            <Team
+              company={company}
+              isOwner={isOwner}
+              me={me}
+              userId={session.user.id}
+              onProfileSaved={(p) => setMe((m) => (m ? { ...m, ...p } : m))}
+            />
+          </SettingsPage>
         )}
         {view === 'new' && inviteJoined && (
           <p className="banner warn invite-banner">
@@ -1014,6 +1010,42 @@ export default function App() {
           </button>
         </footer>
       )}
+
+      <nav className="tabbar" aria-label="Sections">
+        {[
+          ['new', 'New quote', 'M12 5v14M5 12h14'],
+          ['quotes', 'Quotes', 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01'],
+          [
+            'settings',
+            'Settings',
+            'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
+          ],
+        ].map(([id, label, path]) => (
+          <button
+            key={id}
+            type="button"
+            className={view === id ? 'on' : ''}
+            aria-current={view === id ? 'page' : undefined}
+            onClick={() => {
+              setView(id)
+              if (id === 'settings') setSettingsPage(null)
+            }}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d={path} />
+            </svg>
+            {label}
+          </button>
+        ))}
+      </nav>
     </div>
   )
 }
@@ -1295,13 +1327,13 @@ function Quote({
 // ---------------------------------------------------------------------------
 // Onboarding / Company Settings
 //
-// First run walks through Welcome → Sign In → Business → Materials →
+// First run walks through Welcome → Sign In → Business → Services → Pricing →
 // Equipment → Rates → Margins in order. Reopening from the profile pill
 // (onCancel is set) jumps straight to Sign In and lets you move between any
 // of the settings tabs freely, since there's no funnel to protect there.
 // ---------------------------------------------------------------------------
 
-const FORM_STEPS = ['Sign In', 'Business', 'Materials', 'Equipment', 'Rates', 'Margins']
+const FORM_STEPS = ['Sign In', 'Business', 'Services', 'Pricing', 'Equipment', 'Rates', 'Margins']
 
 function Login({ invited }) {
   const [mode, setMode] = useState(invited ? 'signup' : 'signin') // signin | signup
@@ -1459,8 +1491,8 @@ function inferIndustries(materials, equipment) {
   ).map((ind) => ind.id)
 }
 
-function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId }) {
-  const [obStep, setObStep] = useState(onCancel ? 1 : 0)
+function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, startStep = 1 }) {
+  const [obStep, setObStep] = useState(onCancel ? startStep : 0)
   const [confirmReset, setConfirmReset] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(() => ({
@@ -1521,6 +1553,14 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId }) 
       const serviceIds = new Set(serviceTemplate.map((s) => s.id))
       const equipmentIds = new Set(equipmentTemplate.map((e) => e.id))
       if (has) {
+        // Keep anything another checked trade also uses (Landscaping and
+        // Hardscaping share the hardscape starters).
+        f.industries
+          .filter((i) => i !== id)
+          .forEach((i) => {
+            ;(INDUSTRY_SERVICES[i] ?? []).forEach((s) => serviceIds.delete(s.id))
+            ;(INDUSTRY_EQUIPMENT[i] ?? []).forEach((e) => equipmentIds.delete(e.id))
+          })
         return {
           ...f,
           industries: f.industries.filter((i) => i !== id),
@@ -1567,6 +1607,22 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId }) 
       ...f,
       materials: [...f.materials, { id: makeId(), name: '', unit: 'yard', rate: '', note: '', category: 'other' }],
     }))
+
+  const [newService, setNewService] = useState({ name: '', category: 'maintenance' })
+
+  // Adds a service by name only (priced "TBD" until a rate is set under Pricing).
+  const addService = () => {
+    const name = newService.name.trim()
+    if (!name) return
+    setForm((f) => ({
+      ...f,
+      materials: [
+        ...f.materials,
+        { id: makeId(), name, unit: 'tbd', rate: '', note: '', category: newService.category },
+      ],
+    }))
+    setNewService((s) => ({ ...s, name: '' }))
+  }
 
   const removeMaterial = (index) =>
     setForm((f) => ({ ...f, materials: f.materials.filter((_, i) => i !== index) }))
@@ -1913,6 +1969,93 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId }) 
 
         {obStep === 3 && (
           <Section
+            title="Services you offer"
+            hint="Type every service your company provides. They show up as tabs when you build a quote. Set what you charge for each one under Pricing."
+          >
+            <form
+              className="svc-add"
+              onSubmit={(e) => {
+                e.preventDefault()
+                addService()
+              }}
+            >
+              <input
+                value={newService.name}
+                onChange={(e) => setNewService((s) => ({ ...s, name: e.target.value }))}
+                placeholder="e.g. Brush clearing, Spring cleanup…"
+                aria-label="New service name"
+              />
+              <select
+                className="unit-select"
+                value={newService.category}
+                onChange={(e) => setNewService((s) => ({ ...s, category: e.target.value }))}
+                aria-label="Which tab"
+              >
+                {CATEGORIES.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              <button type="submit" className="btn primary svc-add-btn" disabled={!newService.name.trim()}>
+                Add
+              </button>
+            </form>
+
+            {CATEGORIES.map((cat) => {
+              const rows = form.materials
+                .map((m, index) => ({ m, index }))
+                .filter(({ m }) => categoryOf(m) === cat.id)
+              if (rows.length === 0) return null
+              return (
+                <div className="subgroup" key={cat.id}>
+                  <h3>
+                    {cat.name} <span className="svc-count">{rows.length}</span>
+                  </h3>
+                  <div className="edit-list">
+                    {rows.map(({ m, index }) => (
+                      <div className="svc-row" key={m.id}>
+                        <input
+                          value={m.name}
+                          onChange={(e) => updateMaterial(index, { name: e.target.value })}
+                          placeholder="Service name"
+                          aria-label="Service name"
+                        />
+                        <select
+                          className="svc-move"
+                          value={categoryOf(m)}
+                          onChange={(e) => updateMaterial(index, { category: e.target.value })}
+                          aria-label={`Tab for ${m.name || 'service'}`}
+                        >
+                          {CATEGORIES.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          className="edit-remove"
+                          onClick={() => removeMaterial(index)}
+                          aria-label={`Remove ${m.name || 'service'}`}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+            <p className="subgroup-hint">
+              A service with no price yet shows as "Priced separately — TBD" on a quote until
+              you set a rate under Pricing.
+            </p>
+          </Section>
+        )}
+
+        {obStep === 4 && (
+          <Section
             title="Materials & Pricing"
             hint="Every material or line-item service you quote, and what you charge for it."
           >
@@ -1936,18 +2079,6 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId }) 
                     <option value="each">Each</option>
                     <option value="linear-ft">Linear feet</option>
                     <option value="tbd">TBD (priced separately)</option>
-                  </select>
-                  <select
-                    className="unit-select"
-                    value={categoryOf(m)}
-                    onChange={(e) => updateMaterial(i, { category: e.target.value })}
-                    aria-label={`Tab for ${m.name || 'material'}`}
-                  >
-                    {CATEGORIES.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        Tab: {c.name}
-                      </option>
-                    ))}
                   </select>
                   {m.unit !== 'tbd' && (
                     <NumInput
@@ -1983,7 +2114,7 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId }) 
           </Section>
         )}
 
-        {obStep === 4 && (
+        {obStep === 5 && (
           <Section title="Equipment" hint="Day-rate gear the crew uses on jobs.">
             <div className="edit-list">
               {form.equipment.map((e, i) => (
@@ -2017,7 +2148,7 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId }) 
           </Section>
         )}
 
-        {obStep === 5 && (
+        {obStep === 6 && (
           <>
             <Section title="Labor">
               <Field label="Labor rate (per hour, per crew member)">
@@ -2054,7 +2185,7 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId }) 
           </>
         )}
 
-        {obStep === 6 && (
+        {obStep === 7 && (
           <Section title="Margin & Minimums">
             <Field label="Default target margin">
               <div className="margin-row">
