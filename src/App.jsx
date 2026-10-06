@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  CATEGORIES,
   DUMP_FEE,
   INDUSTRIES,
   INDUSTRY_EQUIPMENT,
@@ -11,12 +12,14 @@ import {
   PROFIT_MARGIN,
   TRIP_MINIMUM,
   UNIT_LABEL,
+  categoryOf,
   equipmentById,
   estimate,
   makeId,
   money,
   num,
   qty,
+  seedFlags,
 } from './pricing'
 import { isConfigured, sendQuote } from './email'
 import logoIcon from './assets/logo-icon.png'
@@ -107,6 +110,7 @@ function loadDraft() {
 
 export default function App() {
   const [step, setStep] = useState(0)
+  const [svcTab, setSvcTab] = useState('')
   const [session, setSession] = useState(null)
   const [authReady, setAuthReady] = useState(false)
   const [company, setCompany] = useState(null)
@@ -233,7 +237,10 @@ export default function App() {
 
   const est = useMemo(() => estimate(job, company ?? emptyCompany), [job, company])
 
-  const materials = company?.materials ?? []
+  const materials = useMemo(
+    () => (company?.materials ?? []).map((m) => ({ ...seedFlags(m.id), ...m })),
+    [company],
+  )
   const equipmentList = company?.equipment ?? []
   const selected = materials.filter((s) => job.services.includes(s.id))
   const yardServices = selected.filter((s) => s.unit === 'yard')
@@ -241,6 +248,13 @@ export default function App() {
   const eachServices = selected.filter((s) => s.unit === 'each')
   const linearFtServices = selected.filter((s) => s.unit === 'linear-ft')
   const hasSnowServices = selected.some((s) => s.perVisit || s.depthScaled)
+
+  // Services step tabs: one per category that actually has services.
+  const serviceTabs = CATEGORIES.map((c) => ({
+    ...c,
+    items: materials.filter((m) => categoryOf(m) === c.id),
+  })).filter((c) => c.items.length > 0)
+  const activeTab = serviceTabs.find((t) => t.id === svcTab) ?? serviceTabs[0]
 
   const canAdvance =
     step === 0
@@ -625,8 +639,28 @@ export default function App() {
             title="Services Needed"
             hint="Tap everything this job covers. You can change it later."
           >
+            {serviceTabs.length > 1 && (
+              <div className="cat-tabs" role="tablist">
+                {serviceTabs.map((tab) => {
+                  const picked = tab.items.filter((s) => job.services.includes(s.id)).length
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={activeTab?.id === tab.id}
+                      className={`cat-tab ${activeTab?.id === tab.id ? 'on' : ''}`}
+                      onClick={() => setSvcTab(tab.id)}
+                    >
+                      {tab.name}
+                      {picked > 0 && <span className="cat-count">{picked}</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
             <div className="service-list">
-              {materials.map((service) => {
+              {(activeTab?.items ?? []).map((service) => {
                 const on = job.services.includes(service.id)
                 return (
                   <button
@@ -1510,6 +1544,18 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId }) 
       }
     })
 
+  // Adds any starter service for a checked trade that isn't in the list yet
+  // (e.g. services added in an app update). Never changes or removes anything.
+  const addMissingStarters = () =>
+    setForm((f) => {
+      const have = new Set(f.materials.map((m) => m.id))
+      const adds = f.industries
+        .flatMap((id) => INDUSTRY_SERVICES[id] ?? [])
+        .filter((s) => !have.has(s.id))
+        .map((s) => ({ ...s, rate: String(s.rate ?? '') }))
+      return adds.length ? { ...f, materials: [...f.materials, ...adds] } : f
+    })
+
   const updateMaterial = (index, patch) =>
     setForm((f) => ({
       ...f,
@@ -1519,7 +1565,7 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId }) 
   const addMaterial = () =>
     setForm((f) => ({
       ...f,
-      materials: [...f.materials, { id: makeId(), name: '', unit: 'yard', rate: '', note: '' }],
+      materials: [...f.materials, { id: makeId(), name: '', unit: 'yard', rate: '', note: '', category: 'other' }],
     }))
 
   const removeMaterial = (index) =>
@@ -1576,6 +1622,9 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId }) 
           unit: m.unit,
           rate: m.unit === 'tbd' ? undefined : num(m.rate) || 0,
           note: m.note?.trim() || undefined,
+          category: m.category || undefined,
+          perVisit: m.perVisit || seedFlags(m.id).perVisit || undefined,
+          depthScaled: m.depthScaled || seedFlags(m.id).depthScaled || undefined,
         })),
         equipment: form.equipment
           .filter((e) => e.name.trim() !== '')
@@ -1888,6 +1937,18 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId }) 
                     <option value="linear-ft">Linear feet</option>
                     <option value="tbd">TBD (priced separately)</option>
                   </select>
+                  <select
+                    className="unit-select"
+                    value={categoryOf(m)}
+                    onChange={(e) => updateMaterial(i, { category: e.target.value })}
+                    aria-label={`Tab for ${m.name || 'material'}`}
+                  >
+                    {CATEGORIES.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        Tab: {c.name}
+                      </option>
+                    ))}
+                  </select>
                   {m.unit !== 'tbd' && (
                     <NumInput
                       value={m.rate}
@@ -1915,6 +1976,9 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId }) 
             </div>
             <button type="button" className="btn ghost add-row" onClick={addMaterial}>
               + Add material
+            </button>
+            <button type="button" className="btn ghost add-row" onClick={addMissingStarters}>
+              + Add missing starter services
             </button>
           </Section>
         )}

@@ -11,14 +11,23 @@ export const MIN_JOB_CHARGE = 250 // $
 export const TRIP_MINIMUM = 0 // $ -- stored, not yet applied to the quote math
 
 export const SERVICES = [
-  { id: 'mulch', name: 'Mulch Installation', unit: 'yard', rate: 120, note: 'material + install' },
-  { id: 'sod', name: 'Sod Installation', unit: 'sqft', rate: 0.9, note: 'material + install' },
-  { id: 'grading', name: 'Lawn Grading & Leveling', unit: 'sqft', rate: 0.4 },
-  { id: 'loam', name: 'Loam / Topsoil', unit: 'yard', rate: 120, note: 'material + install' },
-  { id: 'hydroseeding', name: 'Hydroseeding', unit: 'sqft', rate: 0.2 },
-  { id: 'cleanup', name: 'Spring Cleanup', unit: 'tbd' },
-  { id: 'junk', name: 'Junk Removal', unit: 'tbd' },
-  { id: 'gravel', name: 'Gravel', unit: 'yard', rate: 240, note: 'material + install' },
+  // --- Maintenance (recurring / per-visit work) ---
+  { id: 'maint-mow', name: 'Lawn Mowing', unit: 'each', rate: 55, note: 'per visit', category: 'maintenance' },
+  { id: 'maint-trim', name: 'Weed Whacking / String Trimming', unit: 'each', rate: 25, note: 'per visit', category: 'maintenance' },
+  { id: 'maint-edge', name: 'Edging (beds & walks)', unit: 'linear-ft', rate: 1.25, category: 'maintenance' },
+  { id: 'maint-blow', name: 'Leaf Blowing / Blow-off', unit: 'each', rate: 30, note: 'per visit', category: 'maintenance' },
+  { id: 'maint-weed', name: 'Weed Picking (beds)', unit: 'sqft', rate: 0.15, category: 'maintenance' },
+  { id: 'maint-prune', name: 'Pruning / Hedge Trimming', unit: 'linear-ft', rate: 4, category: 'maintenance' },
+  { id: 'cleanup', name: 'Spring Cleanup', unit: 'tbd', category: 'maintenance' },
+  { id: 'maint-fall', name: 'Fall Cleanup / Leaf Removal', unit: 'tbd', category: 'maintenance' },
+  { id: 'junk', name: 'Junk Removal', unit: 'tbd', category: 'maintenance' },
+  // --- Landscape Construction (installs and one-time projects) ---
+  { id: 'mulch', name: 'Mulch Installation', unit: 'yard', rate: 120, note: 'material + install', category: 'construction' },
+  { id: 'sod', name: 'Sod Installation', unit: 'sqft', rate: 0.9, note: 'material + install', category: 'construction' },
+  { id: 'grading', name: 'Lawn Grading & Leveling', unit: 'sqft', rate: 0.4, category: 'construction' },
+  { id: 'loam', name: 'Loam / Topsoil', unit: 'yard', rate: 120, note: 'material + install', category: 'construction' },
+  { id: 'hydroseeding', name: 'Hydroseeding', unit: 'sqft', rate: 0.2, category: 'construction' },
+  { id: 'gravel', name: 'Gravel', unit: 'yard', rate: 240, note: 'material + install', category: 'construction' },
 ]
 
 // Placeholder day-rates -- each business should confirm and edit its own real
@@ -92,46 +101,80 @@ export const INDUSTRY_SERVICES = {
       unit: 'linear-ft',
       rate: 6,
       note: 'material + install',
+      category: 'lighting',
     },
-    { id: 'lighting-tree-wrap', name: 'Tree Wrap Lighting', unit: 'each', rate: 45, note: 'per tree' },
-    { id: 'lighting-bush-wrap', name: 'Bush / Shrub Wrap', unit: 'each', rate: 20, note: 'per bush' },
-    { id: 'lighting-controller', name: 'Timer / Controller', unit: 'each', rate: 35 },
-    { id: 'lighting-takedown', name: 'Takedown & Storage', unit: 'tbd' },
-    { id: 'lighting-design', name: 'Custom Design Consult', unit: 'tbd' },
+    { id: 'lighting-tree-wrap', name: 'Tree Wrap Lighting', unit: 'each', rate: 45, note: 'per tree', category: 'lighting' },
+    { id: 'lighting-bush-wrap', name: 'Bush / Shrub Wrap', unit: 'each', rate: 20, note: 'per bush', category: 'lighting' },
+    { id: 'lighting-controller', name: 'Timer / Controller', unit: 'each', rate: 35, category: 'lighting' },
+    { id: 'lighting-takedown', name: 'Takedown & Storage', unit: 'tbd', category: 'lighting' },
+    { id: 'lighting-design', name: 'Custom Design Consult', unit: 'tbd', category: 'lighting' },
   ],
   'window-cleaning': [
-    { id: 'window-standard', name: 'Standard Window (in & out)', unit: 'each', rate: 8 },
-    { id: 'window-french', name: 'French Pane Window', unit: 'each', rate: 12 },
-    { id: 'window-screen', name: 'Screen Cleaning', unit: 'each', rate: 3 },
-    { id: 'window-track', name: 'Track & Sill Detail', unit: 'each', rate: 4 },
-    { id: 'window-hard-water', name: 'Hard Water Stain Removal', unit: 'tbd' },
+    { id: 'window-standard', name: 'Standard Window (in & out)', unit: 'each', rate: 8, category: 'window-cleaning' },
+    { id: 'window-french', name: 'French Pane Window', unit: 'each', rate: 12, category: 'window-cleaning' },
+    { id: 'window-screen', name: 'Screen Cleaning', unit: 'each', rate: 3, category: 'window-cleaning' },
+    { id: 'window-track', name: 'Track & Sill Detail', unit: 'each', rate: 4, category: 'window-cleaning' },
+    { id: 'window-hard-water', name: 'Hard Water Stain Removal', unit: 'tbd', category: 'window-cleaning' },
   ],
   hardscaping: [
-    { id: 'hardscape-patio', name: 'Paver Patio Installation', unit: 'sqft', rate: 18, note: 'material + install' },
-    { id: 'hardscape-walkway', name: 'Paver Walkway', unit: 'sqft', rate: 16, note: 'material + install' },
-    { id: 'hardscape-wall', name: 'Retaining Wall', unit: 'linear-ft', rate: 45, note: 'material + install' },
-    { id: 'hardscape-edging', name: 'Paver / Stone Edging', unit: 'linear-ft', rate: 9 },
-    { id: 'hardscape-firepit', name: 'Fire Pit Installation', unit: 'tbd' },
+    { id: 'hardscape-patio', name: 'Paver Patio Installation', unit: 'sqft', rate: 18, note: 'material + install', category: 'hardscape' },
+    { id: 'hardscape-walkway', name: 'Paver Walkway', unit: 'sqft', rate: 16, note: 'material + install', category: 'hardscape' },
+    { id: 'hardscape-wall', name: 'Retaining Wall', unit: 'linear-ft', rate: 45, note: 'material + install', category: 'hardscape' },
+    { id: 'hardscape-edging', name: 'Paver / Stone Edging', unit: 'linear-ft', rate: 9, category: 'hardscape' },
+    { id: 'hardscape-firepit', name: 'Fire Pit Installation', unit: 'tbd', category: 'hardscape' },
   ],
   'pressure-washing': [
-    { id: 'pw-driveway', name: 'Driveway / Concrete', unit: 'sqft', rate: 0.25 },
-    { id: 'pw-siding', name: 'House Siding (soft wash)', unit: 'sqft', rate: 0.3 },
-    { id: 'pw-deck-fence', name: 'Deck / Fence', unit: 'sqft', rate: 0.35 },
-    { id: 'pw-roof', name: 'Roof Wash (soft wash)', unit: 'sqft', rate: 0.4 },
-    { id: 'pw-gutter', name: 'Gutter Brightening', unit: 'linear-ft', rate: 2.5 },
+    { id: 'pw-driveway', name: 'Driveway / Concrete', unit: 'sqft', rate: 0.25, category: 'pressure-washing' },
+    { id: 'pw-siding', name: 'House Siding (soft wash)', unit: 'sqft', rate: 0.3, category: 'pressure-washing' },
+    { id: 'pw-deck-fence', name: 'Deck / Fence', unit: 'sqft', rate: 0.35, category: 'pressure-washing' },
+    { id: 'pw-roof', name: 'Roof Wash (soft wash)', unit: 'sqft', rate: 0.4, category: 'pressure-washing' },
+    { id: 'pw-gutter', name: 'Gutter Brightening', unit: 'linear-ft', rate: 2.5, category: 'pressure-washing' },
   ],
   // perVisit: the quantity is multiplied by the number of pushes/visits on the
   // job (1 for a one-off storm, e.g. 14 for a seasonal contract).
   // depthScaled: the rate is multiplied by the snow-depth tier.
   snow: [
-    { id: 'snow-driveway', name: 'Residential Driveway Plowing', unit: 'each', rate: 30, note: 'per driveway, per push', perVisit: true, depthScaled: true },
-    { id: 'snow-walkway', name: 'Walkway & Steps Shoveling', unit: 'each', rate: 18, note: 'per property, per visit', perVisit: true, depthScaled: true },
-    { id: 'snow-lot', name: 'Commercial Lot Plowing', unit: 'sqft', rate: 0.007, note: 'per push', perVisit: true, depthScaled: true },
-    { id: 'snow-salt', name: 'Salting / Deicing (lot or drive)', unit: 'sqft', rate: 0.008, note: 'material + spread', perVisit: true },
-    { id: 'snow-sidewalk', name: 'Sidewalk Clearing & Salting', unit: 'linear-ft', rate: 0.5, perVisit: true, depthScaled: true },
-    { id: 'snow-hauling', name: 'Snow Hauling / Removal', unit: 'tbd' },
-    { id: 'snow-seasonal', name: 'Seasonal Contract (flat rate)', unit: 'tbd' },
+    { id: 'snow-driveway', name: 'Residential Driveway Plowing', unit: 'each', rate: 30, note: 'per driveway, per push', perVisit: true, depthScaled: true, category: 'snow' },
+    { id: 'snow-walkway', name: 'Walkway & Steps Shoveling', unit: 'each', rate: 18, note: 'per property, per visit', perVisit: true, depthScaled: true, category: 'snow' },
+    { id: 'snow-lot', name: 'Commercial Lot Plowing', unit: 'sqft', rate: 0.007, note: 'per push', perVisit: true, depthScaled: true, category: 'snow' },
+    { id: 'snow-salt', name: 'Salting / Deicing (lot or drive)', unit: 'sqft', rate: 0.008, note: 'material + spread', perVisit: true, category: 'snow' },
+    { id: 'snow-sidewalk', name: 'Sidewalk Clearing & Salting', unit: 'linear-ft', rate: 0.5, perVisit: true, depthScaled: true, category: 'snow' },
+    { id: 'snow-hauling', name: 'Snow Hauling / Removal', unit: 'tbd', category: 'snow' },
+    { id: 'snow-seasonal', name: 'Seasonal Contract (flat rate)', unit: 'tbd', category: 'snow' },
   ],
+}
+
+// Tabs on the "Services Needed" step. A service's tab comes from its own
+// `category`, or -- for services saved before categories existed -- from the
+// starter service with the same id. Anything else lands in "Other".
+export const CATEGORIES = [
+  { id: 'maintenance', name: 'Maintenance' },
+  { id: 'construction', name: 'Landscape Construction' },
+  { id: 'hardscape', name: 'Hardscape' },
+  { id: 'snow', name: 'Snow & Ice' },
+  { id: 'lighting', name: 'Lighting' },
+  { id: 'window-cleaning', name: 'Window Cleaning' },
+  { id: 'pressure-washing', name: 'Pressure Washing' },
+  { id: 'other', name: 'Other' },
+]
+
+const SEED_CATEGORY = {}
+Object.values(INDUSTRY_SERVICES).forEach((list) =>
+  list.forEach((s) => {
+    if (s.category) SEED_CATEGORY[s.id] = s.category
+  }),
+)
+
+export const categoryOf = (service) =>
+  service.category || SEED_CATEGORY[service.id] || 'other'
+
+// Flags that make a snow service behave differently in the math; restored from
+// the starter list so they survive an old save that didn't keep them.
+const SEED_BY_ID = {}
+Object.values(INDUSTRY_SERVICES).forEach((list) => list.forEach((s) => (SEED_BY_ID[s.id] = s)))
+export const seedFlags = (id) => {
+  const s = SEED_BY_ID[id]
+  return s ? { perVisit: s.perVisit, depthScaled: s.depthScaled } : {}
 }
 
 export const UNIT_LABEL = { yard: 'yd³', sqft: 'sq ft', each: 'ea', 'linear-ft': 'lin ft' }
@@ -176,7 +219,7 @@ export function serviceQuantity(service, job) {
 export const snowDepthById = (id) => SNOW_DEPTH.find((d) => d.id === id) ?? SNOW_DEPTH[0]
 
 export function estimate(job, company) {
-  const materials = company.materials ?? SERVICES
+  const materials = (company.materials ?? SERVICES).map((m) => ({ ...seedFlags(m.id), ...m }))
   const equipmentList = company.equipment ?? EQUIPMENT
   const laborRate = num(company.laborRate) || LABOR_RATE
   const mileageRate =
