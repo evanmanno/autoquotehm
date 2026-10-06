@@ -36,6 +36,7 @@ import {
 } from './lib/teamStore'
 import { SavedQuotes, Team } from './Team'
 import { SettingsHub, SettingsPage } from './Settings'
+import { ConceptCard } from './Concept'
 import './team.css'
 import './settings.css'
 
@@ -129,6 +130,7 @@ export default function App() {
   const [editStep, setEditStep] = useState(1)
   const [me, setMe] = useState(null) // this login's row in the company's team
   const [savedQuoteId, setSavedQuoteId] = useState(null)
+  const [conceptUrl, setConceptUrl] = useState(null) // AI concept chosen for the PDF
   const [saveState, setSaveState] = useState('idle') // idle | saving | saved | error
   const [hasInvite] = useState(captureInviteFromUrl)
   const [inviteError, setInviteError] = useState('')
@@ -362,7 +364,7 @@ export default function App() {
   const downloadPdf = async () => {
     setPdfState('generating')
     try {
-      await buildQuotePdf(job, est, company, photos.length)
+      await buildQuotePdf(job, est, company, { conceptUrl })
       setPdfState('idle')
     } catch (err) {
       console.error('PDF generation failed:', err)
@@ -374,6 +376,7 @@ export default function App() {
   const startNew = () => {
     photos.forEach((p) => URL.revokeObjectURL(p.url))
     setPhotos([])
+    setConceptUrl(null)
     setJob(emptyJob)
     setSavedQuoteId(null)
     setSaveState('idle')
@@ -981,6 +984,11 @@ export default function App() {
             est={est}
             company={company}
             photoCount={photos.length}
+            photos={photos}
+            companyId={company?.id}
+            quoteId={savedQuoteId}
+            conceptUrl={conceptUrl}
+            onPickConcept={setConceptUrl}
             sendState={sendState}
             sendError={sendError}
             onSend={sendToOffice}
@@ -1094,6 +1102,11 @@ function Quote({
   est,
   company,
   photoCount,
+  photos = [],
+  companyId,
+  quoteId,
+  conceptUrl,
+  onPickConcept,
   sendState,
   sendError,
   onSend,
@@ -1140,6 +1153,16 @@ function Quote({
           {photoCount ? ` · ${photoCount} photo${photoCount === 1 ? '' : 's'}` : ''}
         </p>
       </section>
+
+      <ConceptCard
+        job={job}
+        est={est}
+        photos={photos}
+        companyId={companyId}
+        quoteId={quoteId}
+        selected={conceptUrl}
+        onPick={onPickConcept}
+      />
 
       <section className="card">
         <header className="card-head">

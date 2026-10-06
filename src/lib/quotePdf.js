@@ -148,7 +148,7 @@ function quoteTitle(company) {
 // Layout follows the clean "Landscaping Quote" template: company block + logo
 // on top, big spaced title, Bill To / quote details, flat line-item table,
 // subtotal / tax / total, terms, signature line.
-export async function buildQuotePdfDoc(job, est, company) {
+export async function buildQuotePdfDoc(job, est, company, opts = {}) {
   // Everyone's profile is seeded with the old default green; treat that as
   // "no brand color chosen" and use the template's sage instead.
   const rawBrand = (company?.brandColor || '').toLowerCase()
@@ -414,6 +414,38 @@ export async function buildQuotePdfDoc(job, est, company) {
   doc.setTextColor(r, g, b)
   doc.text('customer signature', right - 107, sigY + 14, { align: 'center' })
 
+  // ---- optional AI concept page ----
+  if (opts.conceptUrl) {
+    const dataUrl = await loadImageDataUrl(opts.conceptUrl)
+    if (dataUrl) {
+      doc.addPage()
+      const pageW = doc.internal.pageSize.getWidth()
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(20)
+      doc.setTextColor(r, g, b)
+      doc.text('Project preview', margin, 72)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(10)
+      doc.setTextColor(90, 100, 95)
+      doc.text('A concept of the finished work described in this quote.', margin, 90)
+      const props = doc.getImageProperties(dataUrl)
+      const maxW = pageW - margin * 2
+      const maxH = pageHeight - 110 - 90
+      const scale = Math.min(maxW / props.width, maxH / props.height)
+      const w = props.width * scale
+      const h = props.height * scale
+      doc.addImage(dataUrl, 'PNG', margin + (maxW - w) / 2, 108, w, h, undefined, 'FAST')
+      doc.setFontSize(8.5)
+      doc.setTextColor(120, 128, 124)
+      doc.text(
+        'AI-generated concept illustration for visualization only. Final materials, colors, sizes and layout will vary.',
+        margin,
+        108 + h + 18,
+        { maxWidth: maxW },
+      )
+    }
+  }
+
   // ---- footer ----
   const pageCount = doc.internal.getNumberOfPages()
   for (let i = 1; i <= pageCount; i++) {
@@ -429,8 +461,8 @@ export async function buildQuotePdfDoc(job, est, company) {
 }
 
 // Builds the PDF and triggers a download.
-export async function buildQuotePdf(job, est, company) {
-  const doc = await buildQuotePdfDoc(job, est, company)
+export async function buildQuotePdf(job, est, company, opts = {}) {
+  const doc = await buildQuotePdfDoc(job, est, company, opts)
   const safeName = (job.customerName || 'quote').replace(/[^a-z0-9]+/gi, '-').toLowerCase()
   doc.save(`${safeName}-quote.pdf`)
 }
