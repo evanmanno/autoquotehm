@@ -169,17 +169,18 @@ h3 {
 .steps {
   display: flex;
   justify-content: space-between;
-  margin-top: 8px;
+  gap: 4px;
+  margin-top: 6px;
 }
 
 .step {
   flex: 1;
-  padding: 2px 0;
+  padding: 6px 0 2px;
   background: none;
   border: 0;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
   color: #5f676e;
   text-align: center;
 }
@@ -262,6 +263,7 @@ h3 {
   color: var(--accent);
 }
 
+input:not([type]),
 input[type='text'],
 input[type='tel'],
 input[type='email'],
@@ -497,17 +499,20 @@ textarea::placeholder {
 
 .edit-remove {
   flex: none;
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   display: grid;
   place-items: center;
-  background: rgba(196, 62, 52, 0.12);
-  border: 1px solid rgba(196, 62, 52, 0.35);
+  background: transparent;
+  border: 0;
   border-radius: 9px;
-  font-size: 16px;
-  font-weight: 700;
+  color: #6d767e;
+  transition: background 0.15s, color 0.15s, transform 0.1s;
+}
+
+.edit-remove:hover {
+  background: rgba(196, 62, 52, 0.12);
   color: #eb8b83;
-  transition: background 0.15s, transform 0.1s;
 }
 
 .edit-remove:active {
@@ -550,18 +555,160 @@ textarea::placeholder {
 
 .add-row {
   width: 100%;
-  padding: 12px;
+  margin-top: 10px;
+  padding: 11px;
   background: none;
-  border: 1.5px dashed #3c434a;
+  border: 1.5px dashed #343a41;
   border-radius: 12px;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--accent-hi);
   transition: border-color 0.15s, background 0.15s;
 }
 
+.add-row:hover,
 .add-row:active {
-  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.list-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin-top: 6px;
+}
+
+.link-btn {
+  padding: 8px 0;
+  background: none;
+  border: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.link-btn:hover {
+  color: var(--accent-hi);
+}
+
+/* grouped, tidy rows */
+.group + .group {
+  margin-top: 26px;
+}
+
+.group-title {
+  display: flex;
+  align-items: center;
+  margin: 0 0 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.group .edit-list {
+  gap: 8px;
+  margin-bottom: 0;
+}
+
+.price-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 6px 4px;
+  padding: 6px 8px 10px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.price-row .pr-controls {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding-right: 6px;
+}
+
+.price-row .pr-controls.one {
+  grid-template-columns: minmax(0, 170px);
+}
+
+.price-row .pr-note {
+  grid-column: 1 / -1;
+  margin-right: 6px;
+}
+
+/* name + note read as plain text until you tap them */
+.pr-name,
+.pr-note {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none;
+}
+
+.pr-name {
+  text-overflow: ellipsis;
+  padding: 8px 4px !important;
+  margin-left: -4px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.pr-note {
+  padding: 3px 4px !important;
+  margin-left: -4px;
+  font-size: 13.5px !important;
+  color: var(--muted);
+}
+
+.pr-name:focus,
+.pr-note:focus {
+  background: var(--surface) !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px var(--accent-dim) !important;
+}
+
+.price-row .unit-select,
+.price-row .numwrap input,
+.equip-row .numwrap input {
+  padding-top: 10px;
+  padding-bottom: 10px;
+  font-size: 15px;
+}
+
+.price-row .unit-select {
+  width: 100%;
+  background-color: var(--surface);
+  flex: none;
+}
+
+.price-row .numwrap input,
+.equip-row .numwrap input {
+  background: var(--surface);
+}
+
+.pr-tbd {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 13px;
+  color: var(--muted);
+  border: 1px dashed var(--line);
+  border-radius: 11px;
+}
+
+.equip-row {
+  display: grid;
+  grid-template-columns: 1fr 130px auto;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 8px 8px 8px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
 }
 
 /* ---------- danger zone ---------- */

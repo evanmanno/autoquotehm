@@ -245,10 +245,11 @@
 
 .svc-add {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: 1fr auto;
   gap: 8px;
-  margin-bottom: 6px;
+  margin-bottom: 22px;
 }
+.svc-add .unit-select { grid-column: 1 / -1; flex: none; padding: 9px 30px 9px 12px; font-size: 13px; }
 
 .svc-add-btn {
   flex: none;
@@ -290,3 +291,13 @@
   font-size: 11px;
   font-weight: 700;
 }
+
+/* services list: one clean row per service */
+.svc-row {
+  grid-template-columns: 1fr auto;
+  padding: 10px 8px 10px 14px;
+  border-radius: 14px;
+}
+.svc-row input { background: transparent; border-color: transparent; padding: 8px 4px; margin-left: -4px; font-weight: 700; }
+.svc-row input:focus { background: var(--surface); border-color: var(--accent); }
+.svc-move { background-color: var(--surface); margin-right: 6px; width: calc(100% - 6px); flex: none; padding: 8px 30px 8px 12px; font-size: 13px; }

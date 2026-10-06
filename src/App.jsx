@@ -1070,6 +1070,14 @@ function Section({ title, hint, children }) {
   )
 }
 
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6" />
+    </svg>
+  )
+}
+
 function Field({ label, required, children }) {
   return (
     <label className="field">
@@ -1625,11 +1633,15 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
       materials: f.materials.map((m, i) => (i === index ? { ...m, ...patch } : m)),
     }))
 
-  const addMaterial = () =>
+  const [focusId, setFocusId] = useState(null)
+  const addMaterial = (category = 'other') => {
+    const id = makeId()
+    setFocusId(id)
     setForm((f) => ({
       ...f,
-      materials: [...f.materials, { id: makeId(), name: '', unit: 'yard', rate: '', note: '', category: 'other' }],
+      materials: [...f.materials, { id, name: '', unit: 'yard', rate: '', note: '', category }],
     }))
+  }
 
   const [newService, setNewService] = useState({ name: '', category: 'maintenance' })
 
@@ -1656,11 +1668,14 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
       equipment: f.equipment.map((e, i) => (i === index ? { ...e, ...patch } : e)),
     }))
 
-  const addEquipment = () =>
+  const addEquipment = () => {
+    const id = makeId()
+    setFocusId(id)
     setForm((f) => ({
       ...f,
-      equipment: [...f.equipment, { id: makeId(), name: '', rate: '' }],
+      equipment: [...f.equipment, { id, name: '', rate: '' }],
     }))
+  }
 
   const removeEquipment = (index) =>
     setForm((f) => ({ ...f, equipment: f.equipment.filter((_, i) => i !== index) }))
@@ -2005,9 +2020,13 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
               <input
                 value={newService.name}
                 onChange={(e) => setNewService((s) => ({ ...s, name: e.target.value }))}
-                placeholder="e.g. Brush clearing, Spring cleanup…"
+                type="text"
+                placeholder="e.g. Brush clearing"
                 aria-label="New service name"
               />
+              <button type="submit" className="btn primary svc-add-btn" disabled={!newService.name.trim()}>
+                Add
+              </button>
               <select
                 className="unit-select"
                 value={newService.category}
@@ -2020,9 +2039,6 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                   </option>
                 ))}
               </select>
-              <button type="submit" className="btn primary svc-add-btn" disabled={!newService.name.trim()}>
-                Add
-              </button>
             </form>
 
             {CATEGORIES.map((cat) => {
@@ -2031,21 +2047,22 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                 .filter(({ m }) => categoryOf(m) === cat.id)
               if (rows.length === 0) return null
               return (
-                <div className="subgroup" key={cat.id}>
-                  <h3>
+                <div className="group" key={cat.id}>
+                  <h3 className="group-title">
                     {cat.name} <span className="svc-count">{rows.length}</span>
                   </h3>
                   <div className="edit-list">
                     {rows.map(({ m, index }) => (
                       <div className="svc-row" key={m.id}>
                         <input
+                          type="text"
                           value={m.name}
                           onChange={(e) => updateMaterial(index, { name: e.target.value })}
                           placeholder="Service name"
                           aria-label="Service name"
                         />
                         <select
-                          className="svc-move"
+                          className="unit-select svc-move"
                           value={categoryOf(m)}
                           onChange={(e) => updateMaterial(index, { category: e.target.value })}
                           aria-label={`Tab for ${m.name || 'service'}`}
@@ -2062,7 +2079,7 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                           onClick={() => removeMaterial(index)}
                           aria-label={`Remove ${m.name || 'service'}`}
                         >
-                          ×
+                          <TrashIcon />
                         </button>
                       </div>
                     ))}
@@ -2080,60 +2097,87 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
         {obStep === 4 && (
           <Section
             title="Materials & Pricing"
-            hint="Every material or line-item service you quote, and what you charge for it."
+            hint="What you charge for each service. Pick the unit, set the rate, and add a note if it helps."
           >
-            <div className="edit-list">
-              {form.materials.map((m, i) => (
-                <div className="edit-row" key={m.id}>
-                  <input
-                    className="edit-name"
-                    value={m.name}
-                    onChange={(e) => updateMaterial(i, { name: e.target.value })}
-                    placeholder="Material name"
-                  />
-                  <select
-                    className="unit-select"
-                    value={m.unit}
-                    onChange={(e) => updateMaterial(i, { unit: e.target.value })}
-                    aria-label={`Unit for ${m.name || 'material'}`}
-                  >
-                    <option value="yard">Cubic yards</option>
-                    <option value="sqft">Square feet</option>
-                    <option value="each">Each</option>
-                    <option value="linear-ft">Linear feet</option>
-                    <option value="tbd">TBD (priced separately)</option>
-                  </select>
-                  {m.unit !== 'tbd' && (
-                    <NumInput
-                      value={m.rate}
-                      onChange={(v) => updateMaterial(i, { rate: v })}
-                      placeholder="0"
-                      suffix={`$/${UNIT_LABEL[m.unit]}`}
-                    />
-                  )}
-                  <input
-                    className="edit-note"
-                    value={m.note ?? ''}
-                    onChange={(e) => updateMaterial(i, { note: e.target.value })}
-                    placeholder="Note (optional)"
-                  />
-                  <button
-                    type="button"
-                    className="edit-remove"
-                    onClick={() => removeMaterial(i)}
-                    aria-label={`Remove ${m.name || 'material'}`}
-                  >
-                    ×
+            {CATEGORIES.map((cat) => {
+              const rows = form.materials
+                .map((m, index) => ({ m, index }))
+                .filter(({ m }) => categoryOf(m) === cat.id)
+              if (rows.length === 0) return null
+              return (
+                <div className="group" key={cat.id}>
+                  <h3 className="group-title">
+                    {cat.name} <span className="svc-count">{rows.length}</span>
+                  </h3>
+                  <div className="edit-list">
+                    {rows.map(({ m, index: i }) => (
+                      <div className="price-row" key={m.id}>
+                        <input
+                          type="text"
+                          className="pr-name"
+                          value={m.name}
+                          autoFocus={m.id === focusId}
+                          onChange={(e) => updateMaterial(i, { name: e.target.value })}
+                          placeholder="Service or material name"
+                          aria-label="Name"
+                        />
+                        <button
+                          type="button"
+                          className="edit-remove"
+                          onClick={() => removeMaterial(i)}
+                          aria-label={`Remove ${m.name || 'item'}`}
+                        >
+                          <TrashIcon />
+                        </button>
+                        <div className="pr-controls">
+                          <select
+                            className="unit-select"
+                            value={m.unit}
+                            onChange={(e) => updateMaterial(i, { unit: e.target.value })}
+                            aria-label={`Unit for ${m.name || 'item'}`}
+                          >
+                            <option value="yard">Cubic yards</option>
+                            <option value="sqft">Square feet</option>
+                            <option value="each">Each</option>
+                            <option value="linear-ft">Linear feet</option>
+                            <option value="tbd">TBD (priced separately)</option>
+                          </select>
+                          {m.unit !== 'tbd' ? (
+                            <NumInput
+                              value={m.rate}
+                              onChange={(v) => updateMaterial(i, { rate: v })}
+                              placeholder="0"
+                              suffix={`$/${UNIT_LABEL[m.unit]}`}
+                            />
+                          ) : (
+                            <span className="pr-tbd">Priced on each quote</span>
+                          )}
+                        </div>
+                        <input
+                          type="text"
+                          className="pr-note"
+                          value={m.note ?? ''}
+                          onChange={(e) => updateMaterial(i, { note: e.target.value })}
+                          placeholder="Add a note (optional)"
+                          aria-label="Note"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <button type="button" className="add-row" onClick={() => addMaterial(cat.id)}>
+                    + Add to {cat.name}
                   </button>
                 </div>
-              ))}
+              )
+            })}
+            <div className="list-actions">
+              <button type="button" className="link-btn" onClick={() => addMaterial('other')}>
+                + Add something else
+              </button>
+              <button type="button" className="link-btn" onClick={addMissingStarters}>
+                + Add missing starter services
+              </button>
             </div>
-            <button type="button" className="btn ghost add-row" onClick={addMaterial}>
-              + Add material
-            </button>
-            <button type="button" className="btn ghost add-row" onClick={addMissingStarters}>
-              + Add missing starter services
-            </button>
           </Section>
         )}
 
@@ -2141,18 +2185,15 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
           <Section title="Equipment" hint="Day-rate gear the crew uses on jobs.">
             <div className="edit-list">
               {form.equipment.map((e, i) => (
-                <div className="edit-row" key={e.id}>
+                <div className="price-row" key={e.id}>
                   <input
-                    className="edit-name"
+                    type="text"
+                    className="pr-name"
                     value={e.name}
+                    autoFocus={e.id === focusId}
                     onChange={(ev) => updateEquipment(i, { name: ev.target.value })}
                     placeholder="Equipment name"
-                  />
-                  <NumInput
-                    value={e.rate}
-                    onChange={(v) => updateEquipment(i, { rate: v })}
-                    placeholder="0"
-                    suffix="$/day"
+                    aria-label="Name"
                   />
                   <button
                     type="button"
@@ -2160,12 +2201,20 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                     onClick={() => removeEquipment(i)}
                     aria-label={`Remove ${e.name || 'equipment'}`}
                   >
-                    ×
+                    <TrashIcon />
                   </button>
+                  <div className="pr-controls one">
+                    <NumInput
+                      value={e.rate}
+                      onChange={(v) => updateEquipment(i, { rate: v })}
+                      placeholder="0"
+                      suffix="$/day"
+                    />
+                  </div>
                 </div>
               ))}
             </div>
-            <button type="button" className="btn ghost add-row" onClick={addEquipment}>
+            <button type="button" className="add-row" onClick={addEquipment}>
               + Add equipment
             </button>
           </Section>
