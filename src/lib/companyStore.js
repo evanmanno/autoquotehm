@@ -22,6 +22,9 @@ function toDbRow(company, ownerId) {
     brand_color: company.brandColor ?? '#1f6f45',
     logo_url: company.logoUrl ?? null,
     industries: company.industries ?? [],
+    // Only sent once a tax rate exists, so saving still works before
+    // supabase/migration_05_sales_tax.sql has been run.
+    ...(company.salesTaxRate != null ? { sales_tax_rate: company.salesTaxRate } : {}),
   }
 }
 
@@ -47,6 +50,7 @@ function fromDbRow(row) {
     brandColor: row.brand_color ?? '#1f6f45',
     logoUrl: row.logo_url ?? '',
     industries: row.industries ?? [],
+    salesTaxRate: row.sales_tax_rate ?? undefined,
   }
 }
 

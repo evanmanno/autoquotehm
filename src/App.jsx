@@ -1233,6 +1233,7 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId }) 
     dumpFee: String(initial.dumpFee ?? ''),
     minJobCharge: String(initial.minJobCharge ?? ''),
     tripMinimum: String(initial.tripMinimum ?? ''),
+    salesTaxPct: initial.salesTaxRate != null ? String(initial.salesTaxRate) : '',
     marginPct: String(Math.round((initial.defaultMargin ?? PROFIT_MARGIN) * 100)),
     materials: (initial.materials ?? []).map((m) => ({ ...m, rate: String(m.rate ?? '') })),
     equipment: (initial.equipment ?? []).map((e) => ({ ...e, rate: String(e.rate ?? '') })),
@@ -1350,6 +1351,11 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId }) 
       dumpFee: num(form.dumpFee) || 0,
       minJobCharge: num(form.minJobCharge) || 0,
       tripMinimum: num(form.tripMinimum) || 0,
+      // Only sent once a rate has been entered, so saving keeps working on a
+      // database that hasn't had migration_05_sales_tax.sql run yet.
+      ...(form.salesTaxPct.trim() !== '' || initial.salesTaxRate != null
+        ? { salesTaxRate: num(form.salesTaxPct) || 0 }
+        : {}),
       defaultMargin: pct / 100,
       industries: form.industries,
       materials: form.materials
@@ -1807,6 +1813,18 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId }) 
                 />
               </Field>
             </div>
+            <Field label="Sales tax on quotes (optional)">
+              <NumInput
+                value={form.salesTaxPct}
+                onChange={setField('salesTaxPct')}
+                placeholder="0"
+                suffix="%"
+              />
+            </Field>
+            <p className="subgroup-hint">
+              Shows as its own line on the customer PDF, added on top of your quote price.
+              Leave blank for no tax line.
+            </p>
             <p className="subgroup-hint">
               Trip minimum is stored here but not yet applied automatically — say the word
               if you want a rule for when it kicks in.

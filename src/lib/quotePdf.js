@@ -127,323 +127,310 @@ export function buildCustomerLines(est) {
   return groups
 }
 
-const GROUP_TITLES = {
-  materials: 'Materials & Services',
-  labor: 'Labor',
-  equipment: 'Equipment',
-  other: 'Travel & Disposal',
+const SAGE = '#5b8f7e'
+const TRADE_TITLES = {
+  landscaping: 'LANDSCAPING',
+  lighting: 'LIGHTING',
+  'window-cleaning': 'WINDOW CLEANING',
+  hardscaping: 'HARDSCAPING',
+  'pressure-washing': 'PRESSURE WASHING',
+  snow: 'SNOW',
 }
 
-// Builds the finished customer-facing estimate (jsPDF document, not yet saved).
-export async function buildQuotePdfDoc(job, est, company, photoCount) {
-  const materials = company?.materials ?? []
-  const brand = hexToRgb(company?.brandColor)
+// "LANDSCAPING QUOTE", "LANDSCAPING & SNOW QUOTE", or just "QUOTE".
+function quoteTitle(company) {
+  const names = (company?.industries ?? []).map((id) => TRADE_TITLES[id]).filter(Boolean)
+  if (names.length === 0 || names.length > 2) return 'QUOTE'
+  return `${names.join(' & ')} QUOTE`
+}
+
+// Builds the finished customer-facing quote (jsPDF document, not yet saved).
+// Layout follows the clean "Landscaping Quote" template: company block + logo
+// on top, big spaced title, Bill To / quote details, flat line-item table,
+// subtotal / tax / total, terms, signature line.
+export async function buildQuotePdfDoc(job, est, company) {
+  // Everyone's profile is seeded with the old default green; treat that as
+  // "no brand color chosen" and use the template's sage instead.
+  const rawBrand = (company?.brandColor || '').toLowerCase()
+  const brand = hexToRgb(!rawBrand || rawBrand === '#1f6f45' ? SAGE : rawBrand)
   const [r, g, b] = brand
-  const soft = tint(brand, 0.88)
-  const zebra = tint(brand, 0.95)
+  const band = tint(brand, 0.93)
   const logoData = await loadImageDataUrl(company?.logoUrl)
 
   const doc = new jsPDF({ unit: 'pt', format: 'letter' })
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
-  const margin = 40
-  const contentW = pageWidth - margin * 2
+  const margin = 48
+  const right = pageWidth - margin
   const today = new Date()
   const validUntil = new Date(today.getTime() + 30 * 86400000)
-  const INK = [38, 44, 40]
-  const MUTED = [110, 118, 112]
-  const LINE = [208, 214, 209]
+  const INK = [34, 38, 36]
+  const fmt = (d) =>
+    `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}-${d.getFullYear()}`
 
-  // ---- header band ----
-  const bandH = 100
-  doc.setFillColor(r, g, b)
-  doc.rect(0, 0, pageWidth, bandH, 'F')
+  // ---- top left: company block ----
+  doc.setTextColor(...INK)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(14)
+  doc.text(company?.businessName || 'Your Company', margin, 66)
+  doc.setFontSize(9)
+  const addr = doc.splitTextToSize(company?.shopAddress || '', 220)
+  let ty = 83
+  addr.forEach((line) => {
+    doc.text(line, margin, ty)
+    ty += 12
+  })
+  const phone = company?.contactPhone || company?.yourPhone
+  const email = company?.contactEmail || company?.yourEmail
+  ;[phone, email].filter(Boolean).forEach((line) => {
+    doc.text(line, margin, ty)
+    ty += 12
+  })
 
-  let textX = margin
+  // ---- top right: logo ----
   if (logoData) {
     try {
       const props = doc.getImageProperties(logoData)
-      const box = 64
-      const scale = Math.min((box - 8) / props.width, (box - 8) / props.height)
+      const boxW = 220
+      const boxH = 62
+      const scale = Math.min(boxW / props.width, boxH / props.height)
       const w = props.width * scale
       const h = props.height * scale
-      doc.setFillColor(255, 255, 255)
-      doc.roundedRect(margin, 24, box, box, 6, 6, 'F')
-      doc.addImage(logoData, props.fileType || 'PNG', margin + (box - w) / 2, 24 + (box - h) / 2, w, h)
-      textX = margin + box + 16
+      doc.addImage(logoData, props.fileType || 'PNG', right - w, 48 + (boxH - h) / 2, w, h)
     } catch {
-      // unsupported image -- fall back to a text-only header
+      // unsupported image: just skip the logo
     }
   }
 
-  doc.setTextColor(255, 255, 255)
+  // ---- title ----
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(19)
-  doc.text(company?.businessName || 'Job Estimate', textX, 44)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  const contactBits = [
-    company?.shopAddress,
-    [company?.contactPhone || company?.yourPhone, company?.contactEmail || company?.yourEmail]
-      .filter(Boolean)
-      .join('  •  '),
-  ].filter(Boolean)
-  contactBits.forEach((line, i) => doc.text(line, textX, 62 + i * 13))
+  doc.setTextColor(r, g, b)
+  doc.setFontSize(27)
+  const title = quoteTitle(company)
+  const words = title.split(' ')
+  const lastWord = words.pop() // QUOTE
+  const firstLine = words.join(' ')
+  const CS = 3.2
+  let titleY = 150
+  // jsPDF's right-align ignores charSpace, so right-align by hand.
+  const spaced = (str, yy) => {
+    const w = doc.getTextWidth(str) + CS * (str.length - 1)
+    doc.text(str, right - w, yy, { charSpace: CS })
+  }
+  if (firstLine) {
+    spaced(firstLine, titleY)
+    titleY += 36
+  }
+  spaced(lastWord, titleY)
 
+  // ---- bill to (left) + quote details (right) ----
+  const blockY = Math.max(titleY + 44, 230)
+  doc.setFontSize(8.5)
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(24)
-  doc.text('ESTIMATE', pageWidth - margin, 46, { align: 'right' })
+  doc.setTextColor(r, g, b)
+  doc.text('Bill To', margin, blockY)
+  doc.setTextColor(...INK)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(12.5)
+  doc.text(job.customerName || 'Customer', margin, blockY + 20)
   doc.setFontSize(9)
+  let by = blockY + 36
+  const billLines = [
+    ...doc.splitTextToSize(job.address || '', 230),
+    ...(job.phone ? [job.phone] : []),
+  ]
+  billLines.forEach((line) => {
+    doc.text(line, margin, by)
+    by += 12
+  })
+
   const meta = [
-    ['Estimate #', estimateNumber(job, today)],
-    ['Date', fmtDate(today)],
-    ['Valid until', fmtDate(validUntil)],
+    ['Quote #', estimateNumber(job, today)],
+    ['Quote date', fmt(today)],
+    ['Valid until', fmt(validUntil)],
   ]
   meta.forEach(([label, value], i) => {
-    const yy = 64 + i * 13
+    const yy = blockY + 4 + i * 23
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8.5)
+    doc.setTextColor(r, g, b)
+    doc.text(label, right - 118, yy, { align: 'right' })
     doc.setFont('helvetica', 'normal')
-    doc.text(`${label}:`, pageWidth - margin - 108, yy, { align: 'right' })
-    doc.setFont('helvetica', 'bold')
-    doc.text(value, pageWidth - margin, yy, { align: 'right' })
-  })
-
-  // ---- reusable bits ----
-  let y = bandH + 18
-
-  const ensureSpace = (needed) => {
-    if (y + needed > pageHeight - 50) {
-      doc.addPage()
-      y = 50
-    }
-  }
-
-  const sectionBar = (title) => {
-    doc.setFillColor(r, g, b)
-    doc.rect(margin, y, contentW, 18, 'F')
-    doc.setFont('helvetica', 'bold')
     doc.setFontSize(9)
-    doc.setTextColor(255, 255, 255)
-    doc.text(title.toUpperCase(), margin + 8, y + 12.5)
-    y += 18
-  }
-
-  const boxOutline = (top, height) => {
-    doc.setDrawColor(...LINE)
-    doc.setLineWidth(0.8)
-    doc.rect(margin, top, contentW, height)
-  }
-
-  // ---- customer information ----
-  sectionBar('Customer information')
-  const infoTop = y
-  const half = contentW / 2
-  const customerRows = [
-    ['Customer', job.customerName || '—'],
-    ['Phone', job.phone || '—'],
-  ]
-  doc.setFontSize(10)
-  customerRows.forEach(([label, value], i) => {
-    const yy = infoTop + 17 + i * 18
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(...MUTED)
-    doc.text(label, margin + 10, yy)
-    doc.setFont('helvetica', 'normal')
     doc.setTextColor(...INK)
-    doc.text(String(value), margin + 70, yy)
-  })
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(...MUTED)
-  doc.text('Job site', margin + half + 10, infoTop + 17)
-  doc.setFont('helvetica', 'normal')
-  doc.setTextColor(...INK)
-  const addrLines = doc.splitTextToSize(job.address || '—', half - 80)
-  doc.text(addrLines.slice(0, 2), margin + half + 60, infoTop + 17)
-  const infoH = 48
-  boxOutline(infoTop, infoH)
-  doc.line(margin + half, infoTop, margin + half, infoTop + infoH)
-  y = infoTop + infoH + 12
-
-  // ---- job description ----
-  const selected = materials.filter((s) => job.services.includes(s.id))
-  // Scope is one wrapped line -- the itemized table below carries the quantities.
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9.5)
-  const descLines = selected.length
-    ? doc.splitTextToSize(`Scope of work: ${selected.map((x) => x.name).join('  •  ')}`, contentW - 20)
-    : []
-  if (descLines.length || job.notes) {
-    sectionBar('Job description')
-    const bodyLines = [...descLines]
-    if (job.notes) {
-      if (bodyLines.length) bodyLines.push('')
-      bodyLines.push(...doc.splitTextToSize(`Notes: ${job.notes}`, contentW - 20))
-    }
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(9.5)
-    const boxH = bodyLines.length * 13 + 16
-    ensureSpace(boxH + 10)
-    const top = y
-    doc.setTextColor(...INK)
-    bodyLines.forEach((line, i) => doc.text(line, margin + 10, top + 16 + i * 13))
-    boxOutline(top, boxH)
-    y = top + boxH + 12
-  }
-
-  // ---- itemized table (grouped like the sample templates) ----
-  const groups = buildCustomerLines(est)
-  const body = []
-  Object.entries(groups).forEach(([key, lines]) => {
-    if (!lines.length) return
-    body.push([
-      {
-        content: GROUP_TITLES[key],
-        colSpan: 4,
-        styles: { fillColor: soft, textColor: [r, g, b], fontStyle: 'bold', fontSize: 8.5, cellPadding: { top: 3, bottom: 3, left: 8, right: 8 } },
-      },
-    ])
-    lines.forEach((l) =>
-      body.push([
-        l.name,
-        l.qtyText,
-        l.tbd ? '—' : money(l.unitPrice),
-        l.tbd ? 'TBD' : money(l.amount),
-      ]),
-    )
+    doc.text(value, right, yy, { align: 'right' })
   })
 
-  ensureSpace(80)
+  // ---- line items ----
+  const lines = Object.values(buildCustomerLines(est)).flat()
+  const body = lines.map((l) => [
+    l.tbd ? '—' : l.qtyText.replace(/^1$/, '1'),
+    l.name,
+    l.tbd ? '—' : money(l.unitPrice),
+    l.tbd ? 'TBD' : money(l.amount),
+  ])
+
+  let y = Math.max(blockY + 90, by + 24)
   autoTable(doc, {
     startY: y,
-    margin: { left: margin, right: margin, bottom: 60 },
-    head: [['Description', 'Qty', 'Unit price', 'Amount']],
+    margin: { left: margin, right: margin, bottom: 70 },
+    head: [['QTY', 'Description', 'Unit Price', 'Amount']],
     body,
     theme: 'plain',
-    styles: { fontSize: 9.5, cellPadding: { top: 4.2, bottom: 4.2, left: 8, right: 8 }, textColor: INK, lineColor: LINE, lineWidth: 0 },
-    headStyles: { fillColor: [r, g, b], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+    styles: {
+      font: 'helvetica',
+      fontSize: 9,
+      textColor: INK,
+      cellPadding: { top: 5, bottom: 5, left: 6, right: 6 },
+    },
+    headStyles: { fillColor: [r, g, b], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
     columnStyles: {
-      0: { cellWidth: 'auto' },
-      1: { halign: 'right', cellWidth: 95 },
-      2: { halign: 'right', cellWidth: 85 },
-      3: { halign: 'right', cellWidth: 90 },
+      0: { cellWidth: 78 },
+      1: { cellWidth: 'auto' },
+      2: { halign: 'right', cellWidth: 82 },
+      3: { halign: 'right', cellWidth: 82 },
     },
     didParseCell: (data) => {
-      if (data.section === 'head' && data.column.index > 0) data.cell.styles.halign = 'right'
+      if (data.section === 'head' && data.column.index >= 2) data.cell.styles.halign = 'right'
     },
-    didDrawCell: (data) => {
-      if (data.section === 'body') {
-        doc.setDrawColor(...LINE)
-        doc.setLineWidth(0.5)
-        const { x, y: cy, width, height } = data.cell
-        doc.line(x, cy + height, x + width, cy + height)
-      }
-    },
+    didDrawPage: () => {},
   })
-  y = doc.lastAutoTable.finalY + 12
+  y = doc.lastAutoTable.finalY
 
-  // ---- totals (right) + notes & terms (left), side by side like the templates ----
-  const boxW = 230
-  const boxX = pageWidth - margin - boxW
-  const leftW = contentW - boxW - 16
+  // thin rule closing the table
+  doc.setDrawColor(r, g, b)
+  doc.setLineWidth(0.8)
+  doc.line(margin, y, right, y)
 
+  // ---- totals ----
+  const taxRate = Number(company?.salesTaxRate) > 0 ? Number(company.salesTaxRate) : 0
+  const tax = Math.round(est.quotePrice * taxRate) / 100
+  const total = est.quotePrice + tax
+  const boxX = right - 232
+  const needed = (taxRate ? 74 : 54) + 24
+  if (y + needed > pageHeight - 60) {
+    doc.addPage()
+    y = 60
+  }
+  const row = (label, value, yy, opts = {}) => {
+    doc.setFont('helvetica', opts.bold ? 'bold' : 'normal')
+    doc.setFontSize(opts.size || 9)
+    doc.setTextColor(...(opts.color || INK))
+    doc.text(label, boxX + 6, yy)
+    doc.text(value, right - 6, yy, { align: 'right' })
+  }
+  const totalsPage = doc.internal.getNumberOfPages()
+  let ty2 = y + 20
+  row('Subtotal', money(est.quotePrice), ty2)
+  ty2 += 20
+  doc.setDrawColor(...[200, 208, 203])
+  doc.setLineWidth(0.5)
+  if (taxRate) {
+    doc.line(boxX, ty2 - 13, right, ty2 - 13)
+    row(`Sales Tax (${taxRate}%)`, money(tax), ty2)
+    ty2 += 20
+  }
+  doc.setFillColor(...band)
+  doc.rect(boxX, ty2 - 14, 232, 24, 'F')
+  doc.setDrawColor(r, g, b)
+  doc.setLineWidth(0.8)
+  doc.line(boxX, ty2 - 14, right, ty2 - 14)
+  doc.line(boxX, ty2 + 10, right, ty2 + 10)
+  row('Total (USD)', money(total), ty2 + 2, { bold: true, color: [r, g, b], size: 9.5 })
+  y = ty2 + 44
+
+  // ---- terms & notes ----
+  if (y > pageHeight - 150) {
+    doc.addPage()
+    y = 70
+  }
   const flags = []
   if (est.belowMinimum) flags.push(`Priced at the ${money(est.minJobCharge)} minimum job charge.`)
   if (est.hasTbd) {
-    const names = est.lineItems
-      .filter((i) => i.tbd)
-      .map((i) => i.name)
-      .join(' and ')
-    flags.push(`Not included: ${names} — priced separately.`)
+    const names = est.lineItems.filter((i) => i.tbd).map((i) => i.name).join(' and ')
+    flags.push(`Not included: ${names} — to be priced separately.`)
   }
   const terms = [
+    'This quote is valid for 30 days from the date above.',
+    'Final price may change if the scope of work changes after the site visit.',
     ...flags,
-    'Valid for 30 days. Price may change if the scope of work changes after the site visit.',
-    'Signed approval authorizes the work to be scheduled.',
     ...(company?.terms ? [company.terms] : []),
   ]
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8.5)
-  const termLines = terms.flatMap((t) => doc.splitTextToSize(`•  ${t}`, leftW - 20))
-  const termsH = Math.max(termLines.length * 11.5 + 14, 62)
-  ensureSpace(18 + termsH + 8)
-
-  const blockTop = y
-  // left: notes & terms
-  doc.setFillColor(r, g, b)
-  doc.rect(margin, blockTop, leftW, 18, 'F')
+  const leftW = boxX - margin - 24
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  doc.setTextColor(255, 255, 255)
-  doc.text('NOTES & TERMS', margin + 8, blockTop + 12.5)
-  doc.setFont('helvetica', 'normal')
   doc.setFontSize(8.5)
-  doc.setTextColor(...MUTED)
-  termLines.forEach((line, i) => doc.text(line, margin + 10, blockTop + 33 + i * 11.5))
-  doc.setDrawColor(...LINE)
+  doc.setTextColor(r, g, b)
+  doc.text('Terms and Conditions', margin, y)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9)
+  doc.setTextColor(...INK)
+  let tyy = y + 16
+  terms.forEach((t) => {
+    doc.splitTextToSize(t, leftW).forEach((line) => {
+      if (tyy > pageHeight - 56) {
+        doc.addPage()
+        tyy = 60
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(9)
+        doc.setTextColor(...INK)
+      }
+      doc.text(line, margin, tyy)
+      tyy += 12
+    })
+  })
+  if (job.notes) {
+    tyy += 8
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8.5)
+    doc.setTextColor(r, g, b)
+    doc.text('Notes', margin, tyy)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.setTextColor(...INK)
+    tyy += 16
+    doc.splitTextToSize(job.notes, leftW).forEach((line) => {
+      if (tyy > pageHeight - 56) {
+        doc.addPage()
+        tyy = 60
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(9)
+        doc.setTextColor(...INK)
+      }
+      doc.text(line, margin, tyy)
+      tyy += 12
+    })
+  }
+
+  // ---- signature, bottom right of the last page ----
+  let sigY = pageHeight - 96
+  if (doc.internal.getNumberOfPages() === totalsPage && ty2 + 40 > sigY) {
+    doc.addPage()
+  }
+  doc.setDrawColor(r, g, b)
   doc.setLineWidth(0.8)
-  doc.rect(margin, blockTop + 18, leftW, termsH)
-
-  // right: subtotal + total bar
+  doc.line(right - 214, sigY, right, sigY)
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
-  doc.setTextColor(...INK)
-  doc.text('Subtotal', boxX + 10, blockTop + 13)
-  doc.text(money(est.quotePrice), pageWidth - margin - 10, blockTop + 13, { align: 'right' })
-  doc.line(boxX, blockTop + 22, pageWidth - margin, blockTop + 22)
-  doc.setFillColor(r, g, b)
-  doc.rect(boxX, blockTop + 30, boxW, 28, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(11.5)
-  doc.setTextColor(255, 255, 255)
-  doc.text('TOTAL ESTIMATE', boxX + 10, blockTop + 49.5)
-  doc.setFontSize(14)
-  doc.text(money(est.quotePrice), pageWidth - margin - 10, blockTop + 50, { align: 'right' })
-  y = blockTop + 18 + termsH + 20
+  doc.setFontSize(8)
+  doc.setTextColor(r, g, b)
+  doc.text('customer signature', right - 107, sigY + 14, { align: 'center' })
 
-  // ---- acceptance ----
-  ensureSpace(46)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  doc.setTextColor(...INK)
-  doc.text('CUSTOMER ACCEPTANCE', margin, y)
-  y += 24
-  doc.setDrawColor(...INK)
-  doc.setLineWidth(0.7)
-  doc.line(margin, y, margin + 270, y)
-  doc.line(margin + 300, y, margin + 300 + 130, y)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8.5)
-  doc.setTextColor(...MUTED)
-  doc.text('Signature', margin, y + 12)
-  doc.text('Date', margin + 300, y + 12)
-
-  // ---- footer on every page ----
+  // ---- footer ----
   const pageCount = doc.internal.getNumberOfPages()
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i)
-    doc.setDrawColor(...LINE)
-    doc.setLineWidth(0.6)
-    doc.line(margin, pageHeight - 42, pageWidth - margin, pageHeight - 42)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
-    doc.setTextColor(r, g, b)
-    doc.text('Thank you for your business!', margin, pageHeight - 28)
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    doc.setTextColor(150, 150, 150)
-    const questions = [company?.contactName, company?.contactPhone || company?.yourPhone]
-      .filter(Boolean)
-      .join(' · ')
-    if (questions) doc.text(`Questions? ${questions}`, pageWidth / 2, pageHeight - 28, { align: 'center' })
-    doc.text(`Page ${i} of ${pageCount}`, pageWidth - margin, pageHeight - 28, { align: 'right' })
-    doc.text('Created with AutoQuoteHM', pageWidth - margin, pageHeight - 17, { align: 'right' })
+    doc.setFontSize(7.5)
+    doc.setTextColor(165, 170, 167)
+    doc.text('Created with AutoQuoteHM', margin, pageHeight - 24)
+    if (pageCount > 1) doc.text(`Page ${i} of ${pageCount}`, right, pageHeight - 24, { align: 'right' })
   }
 
   return doc
 }
 
 // Builds the PDF and triggers a download.
-export async function buildQuotePdf(job, est, company, photoCount) {
-  const doc = await buildQuotePdfDoc(job, est, company, photoCount)
+export async function buildQuotePdf(job, est, company) {
+  const doc = await buildQuotePdfDoc(job, est, company)
   const safeName = (job.customerName || 'quote').replace(/[^a-z0-9]+/gi, '-').toLowerCase()
-  doc.save(`${safeName}-estimate.pdf`)
+  doc.save(`${safeName}-quote.pdf`)
 }
