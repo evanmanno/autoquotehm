@@ -79,6 +79,22 @@ export function buildEmailBody(job, est, photoCount, company) {
     parts.push(`Area per service: ${areaLines.join(' | ')}`)
   }
 
+  const linearFtLines = job.services
+    .map((id) => serviceById(materials, id))
+    .filter((s) => s && s.unit === 'linear-ft')
+    .map((s) => `${s.name}: ${qty(serviceQuantity(s, job))} lin ft`)
+  if (linearFtLines.length) {
+    parts.push(`Linear footage: ${linearFtLines.join(' | ')}`)
+  }
+
+  const eachLines = job.services
+    .map((id) => serviceById(materials, id))
+    .filter((s) => s && s.unit === 'each')
+    .map((s) => `${s.name}: ${qty(serviceQuantity(s, job))} ea`)
+  if (eachLines.length) {
+    parts.push(`Count: ${eachLines.join(' | ')}`)
+  }
+
   parts.push(`Estimated labor hours: ${qty(est.laborHours)}`)
   parts.push(`Crew members: ${qty(est.crewMembers)}`)
   parts.push(`Crew assigned: ${job.crew}`)

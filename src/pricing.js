@@ -31,7 +31,110 @@ export const EQUIPMENT = [
   { id: 'stumpgrinder', name: 'Stump Grinder (rental)', rate: 225 },
 ]
 
-export const UNIT_LABEL = { yard: 'yd³', sqft: 'sq ft' }
+// A business picks its trade(s) during onboarding, which seeds its Materials
+// list with a realistic starter rate card for that trade -- still fully
+// editable/removable afterward. Every rate below is a placeholder, same as
+// SERVICES/EQUIPMENT: confirm and adjust before quoting real customers.
+export const INDUSTRIES = [
+  { id: 'landscaping', name: 'Landscaping' },
+  { id: 'lighting', name: 'Holiday / Permanent Lighting' },
+  { id: 'window-cleaning', name: 'Window Cleaning' },
+  { id: 'hardscaping', name: 'Hardscaping' },
+  { id: 'pressure-washing', name: 'Pressure Washing' },
+  { id: 'snow', name: 'Snow Plowing & Salting' },
+]
+
+// Snow jobs scale with how much fell. Each tier multiplies the base rate of any
+// service flagged `depthScaled` (plowing, shoveling) -- salting is the same
+// whether it fell 2" or 10", so it isn't. Placeholder multipliers: tune them to
+// your own per-inch pricing in Company Settings.
+export const SNOW_DEPTH = [
+  { id: 'light', label: 'Under 3"', mult: 1 },
+  { id: 'mid', label: '3–6"', mult: 1.35 },
+  { id: 'heavy', label: '6–12"', mult: 1.8 },
+  { id: 'storm', label: '12"+ storm', mult: 2.5 },
+]
+
+// Equipment follows the same pattern as INDUSTRY_SERVICES -- checking a trade
+// also seeds the day-rate gear that trade typically bills separately.
+export const INDUSTRY_EQUIPMENT = {
+  landscaping: EQUIPMENT,
+  lighting: [
+    { id: 'lighting-lift', name: 'Lift / Extra-Reach Ladder', rate: 75 },
+    { id: 'lighting-cordreel', name: 'Extension Cord Reel', rate: 15 },
+  ],
+  'window-cleaning': [
+    { id: 'wc-waterfed-pole', name: 'Water-Fed Pole System', rate: 40 },
+    { id: 'wc-lift', name: 'Lift (2nd story+)', rate: 150 },
+  ],
+  hardscaping: [
+    { id: 'hardscape-compactor', name: 'Plate Compactor', rate: 65 },
+    { id: 'hardscape-miniex', name: 'Mini Excavator (rental)', rate: 275 },
+  ],
+  'pressure-washing': [
+    { id: 'pw-rig', name: 'Pressure Washer Rig', rate: 50 },
+    { id: 'pw-surface-cleaner', name: 'Surface Cleaner Attachment', rate: 35 },
+  ],
+  snow: [
+    { id: 'snow-truck', name: 'Plow Truck', rate: 300 },
+    { id: 'snow-pusher', name: 'Skid Steer w/ Snow Pusher', rate: 275 },
+    { id: 'snow-spreader', name: 'Salt Spreader', rate: 60 },
+    { id: 'snow-blower', name: 'Walkway Snow Blower', rate: 40 },
+  ],
+}
+
+export const INDUSTRY_SERVICES = {
+  landscaping: SERVICES,
+  lighting: [
+    {
+      id: 'lighting-roofline',
+      name: 'Roofline Lighting',
+      unit: 'linear-ft',
+      rate: 6,
+      note: 'material + install',
+    },
+    { id: 'lighting-tree-wrap', name: 'Tree Wrap Lighting', unit: 'each', rate: 45, note: 'per tree' },
+    { id: 'lighting-bush-wrap', name: 'Bush / Shrub Wrap', unit: 'each', rate: 20, note: 'per bush' },
+    { id: 'lighting-controller', name: 'Timer / Controller', unit: 'each', rate: 35 },
+    { id: 'lighting-takedown', name: 'Takedown & Storage', unit: 'tbd' },
+    { id: 'lighting-design', name: 'Custom Design Consult', unit: 'tbd' },
+  ],
+  'window-cleaning': [
+    { id: 'window-standard', name: 'Standard Window (in & out)', unit: 'each', rate: 8 },
+    { id: 'window-french', name: 'French Pane Window', unit: 'each', rate: 12 },
+    { id: 'window-screen', name: 'Screen Cleaning', unit: 'each', rate: 3 },
+    { id: 'window-track', name: 'Track & Sill Detail', unit: 'each', rate: 4 },
+    { id: 'window-hard-water', name: 'Hard Water Stain Removal', unit: 'tbd' },
+  ],
+  hardscaping: [
+    { id: 'hardscape-patio', name: 'Paver Patio Installation', unit: 'sqft', rate: 18, note: 'material + install' },
+    { id: 'hardscape-walkway', name: 'Paver Walkway', unit: 'sqft', rate: 16, note: 'material + install' },
+    { id: 'hardscape-wall', name: 'Retaining Wall', unit: 'linear-ft', rate: 45, note: 'material + install' },
+    { id: 'hardscape-edging', name: 'Paver / Stone Edging', unit: 'linear-ft', rate: 9 },
+    { id: 'hardscape-firepit', name: 'Fire Pit Installation', unit: 'tbd' },
+  ],
+  'pressure-washing': [
+    { id: 'pw-driveway', name: 'Driveway / Concrete', unit: 'sqft', rate: 0.25 },
+    { id: 'pw-siding', name: 'House Siding (soft wash)', unit: 'sqft', rate: 0.3 },
+    { id: 'pw-deck-fence', name: 'Deck / Fence', unit: 'sqft', rate: 0.35 },
+    { id: 'pw-roof', name: 'Roof Wash (soft wash)', unit: 'sqft', rate: 0.4 },
+    { id: 'pw-gutter', name: 'Gutter Brightening', unit: 'linear-ft', rate: 2.5 },
+  ],
+  // perVisit: the quantity is multiplied by the number of pushes/visits on the
+  // job (1 for a one-off storm, e.g. 14 for a seasonal contract).
+  // depthScaled: the rate is multiplied by the snow-depth tier.
+  snow: [
+    { id: 'snow-driveway', name: 'Residential Driveway Plowing', unit: 'each', rate: 30, note: 'per driveway, per push', perVisit: true, depthScaled: true },
+    { id: 'snow-walkway', name: 'Walkway & Steps Shoveling', unit: 'each', rate: 18, note: 'per property, per visit', perVisit: true, depthScaled: true },
+    { id: 'snow-lot', name: 'Commercial Lot Plowing', unit: 'sqft', rate: 0.007, note: 'per push', perVisit: true, depthScaled: true },
+    { id: 'snow-salt', name: 'Salting / Deicing (lot or drive)', unit: 'sqft', rate: 0.008, note: 'material + spread', perVisit: true },
+    { id: 'snow-sidewalk', name: 'Sidewalk Clearing & Salting', unit: 'linear-ft', rate: 0.5, perVisit: true, depthScaled: true },
+    { id: 'snow-hauling', name: 'Snow Hauling / Removal', unit: 'tbd' },
+    { id: 'snow-seasonal', name: 'Seasonal Contract (flat rate)', unit: 'tbd' },
+  ],
+}
+
+export const UNIT_LABEL = { yard: 'yd³', sqft: 'sq ft', each: 'ea', 'linear-ft': 'lin ft' }
 
 export const num = (v) => {
   const n = parseFloat(v)
@@ -64,8 +167,13 @@ export function serviceQuantity(service, job) {
       ? num(job.squareFootage)
       : num(override)
   }
+  if (service.unit === 'each' || service.unit === 'linear-ft') {
+    return num(job.serviceQty?.[service.id])
+  }
   return 0
 }
+
+export const snowDepthById = (id) => SNOW_DEPTH.find((d) => d.id === id) ?? SNOW_DEPTH[0]
 
 export function estimate(job, company) {
   const materials = company.materials ?? SERVICES
@@ -87,17 +195,40 @@ export function estimate(job, company) {
     .map((id) => {
       const service = serviceById(materials, id)
       if (!service) return null
-      const quantity = serviceQuantity(service, job)
       // TBD services are quoted by hand later, so they never touch the totals.
       const tbd = service.unit === 'tbd'
+      let quantity = serviceQuantity(service, job)
+      let rate = service.rate ?? 0
+      let name = service.name
+      let visits = 1
+      let depthLabel = ''
+      const baseQuantity = quantity
+      // Snow: more pushes multiply the quantity, deeper snow multiplies the rate.
+      // Folding both into quantity/rate keeps every "qty x rate = cost" display
+      // (quote screen, email, PDF) correct without special cases.
+      if (!tbd && service.perVisit) {
+        visits = Math.max(1, Math.round(num(job.snowVisits)) || 1)
+        quantity *= visits
+        if (visits > 1) name += ` — ${visits} visits`
+      }
+      if (!tbd && service.depthScaled) {
+        const depth = snowDepthById(job.snowDepth)
+        rate *= depth.mult
+        depthLabel = depth.label
+        name += ` (${depth.label} snow)`
+      }
       return {
         id,
-        name: service.name,
+        name,
         unit: service.unit,
         unitLabel: UNIT_LABEL[service.unit],
-        rate: service.rate ?? 0,
+        rate,
         quantity,
-        cost: tbd ? 0 : quantity * (service.rate ?? 0),
+        baseName: service.name,
+        baseQuantity,
+        visits,
+        depthLabel,
+        cost: tbd ? 0 : quantity * rate,
         tbd,
       }
     })

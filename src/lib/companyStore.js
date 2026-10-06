@@ -19,6 +19,9 @@ function toDbRow(company, ownerId) {
     default_margin: company.defaultMargin ?? 0,
     materials: company.materials ?? [],
     equipment: company.equipment ?? [],
+    brand_color: company.brandColor ?? '#1f6f45',
+    logo_url: company.logoUrl ?? null,
+    industries: company.industries ?? [],
   }
 }
 
@@ -41,6 +44,9 @@ function fromDbRow(row) {
     defaultMargin: row.default_margin ?? 0,
     materials: row.materials ?? [],
     equipment: row.equipment ?? [],
+    brandColor: row.brand_color ?? '#1f6f45',
+    logoUrl: row.logo_url ?? '',
+    industries: row.industries ?? [],
   }
 }
 
@@ -60,6 +66,21 @@ export async function saveCompany(company, ownerId) {
     .maybeSingle()
   if (error) throw error
   return fromDbRow(data)
+}
+
+// Uploads a business\'s logo to a per-owner folder in the public "logos"
+// bucket and returns its public URL. Storage RLS only lets an owner write
+// inside their own folder (see supabase/migration_03_branding.sql).
+export async function uploadLogo(file, ownerId) {
+  const ext = (file.name.split('.').pop() || 'png').toLowerCase()
+  const path = `${ownerId}/logo-${Date.now()}.${ext}`
+  const { error } = await supabase.storage.from('logos').upload(path, file, {
+    upsert: true,
+    contentType: file.type || undefined,
+  })
+  if (error) throw error
+  const { data } = supabase.storage.from('logos').getPublicUrl(path)
+  return data.publicUrl
 }
 
 export async function deleteCompany(ownerId) {

@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   DUMP_FEE,
-  EQUIPMENT,
+  INDUSTRIES,
+  INDUSTRY_EQUIPMENT,
+  INDUSTRY_SERVICES,
+  SNOW_DEPTH,
   LABOR_RATE,
   MILEAGE_RATE,
   MIN_JOB_CHARGE,
   PROFIT_MARGIN,
-  SERVICES,
   TRIP_MINIMUM,
   UNIT_LABEL,
   equipmentById,
@@ -19,7 +21,8 @@ import {
 import { isConfigured, sendQuote } from './email'
 import logoIcon from './assets/logo-icon.png'
 import { getInitialSession, onAuthChange, signIn, signOut, signUp } from './lib/auth'
-import { deleteCompany, fetchCompany, saveCompany } from './lib/companyStore'
+import { deleteCompany, fetchCompany, saveCompany, uploadLogo } from './lib/companyStore'
+import { buildQuotePdf } from './lib/quotePdf'
 
 const STEPS = ['Property', 'Services', 'Job Details', 'Quote']
 
@@ -48,8 +51,9 @@ const emptyCompany = {
   minJobCharge: MIN_JOB_CHARGE,
   tripMinimum: TRIP_MINIMUM,
   defaultMargin: PROFIT_MARGIN,
-  materials: SERVICES.map((s) => ({ ...s })),
-  equipment: EQUIPMENT.map((e) => ({ ...e })),
+  industries: [],
+  materials: [],
+  equipment: [],
 }
 
 const emptyJob = {
@@ -60,6 +64,9 @@ const emptyJob = {
   squareFootage: '',
   yards: {},
   serviceSqft: {},
+  serviceQty: {},
+  snowDepth: 'light',
+  snowVisits: '1',
   laborHours: '',
   crewMembers: '2',
   crew: 'Crew 1',
@@ -100,6 +107,7 @@ export default function App() {
   const [photos, setPhotos] = useState([])
   const [sendState, setSendState] = useState('idle') // idle | sending | sent | error
   const [sendError, setSendError] = useState('')
+  const [pdfState, setPdfState] = useState('idle') // idle | generating
   const topRef = useRef(null)
 
   // Photos hold blob URLs, so they are intentionally left out of the draft.
@@ -194,6 +202,9 @@ export default function App() {
   const selected = materials.filter((s) => job.services.includes(s.id))
   const yardServices = selected.filter((s) => s.unit === 'yard')
   const sqftServices = selected.filter((s) => s.unit === 'sqft')
+  const eachServices = selected.filter((s) => s.unit === 'each')
+  const linearFtServices = selected.filter((s) => s.unit === 'linear-ft')
+  const hasSnowServices = selected.some((s) => s.perVisit || s.depthScaled)
 
   const canAdvance =
     step === 0
@@ -230,6 +241,18 @@ export default function App() {
     } catch (err) {
       setSendError(err?.text || err?.message || 'Email failed to send.')
       setSendState('error')
+    }
+  }
+
+  const downloadPdf = async () => {
+    setPdfState('generating')
+    try {
+      await buildQuotePdf(job, est, company, photos.length)
+      setPdfState('idle')
+    } catch (err) {
+      console.error('PDF generation failed:', err)
+      setPdfState('idle')
+      alert('Could not build the PDF. Try again.')
     }
   }
 
@@ -315,6 +338,7 @@ export default function App() {
         onCancel={company ? () => setEditingCompany(false) : undefined}
         onReset={company ? deleteAllData : undefined}
         onSignOut={quickSignOut}
+        ownerId={session?.user?.id}
       />
     )
   }
@@ -491,6 +515,70 @@ export default function App() {
                       />
                     </Field>
                   ))}
+                </div>
+              )}
+
+              {linearFtServices.length > 0 && (
+                <div className="subgroup">
+                  <h3>Linear footage</h3>
+                  {linearFtServices.map((service) => (
+                    <Field key={service.id} label={service.name}>
+                      <NumInput
+                        value={job.serviceQty[service.id] ?? ''}
+                        onChange={setNested('serviceQty', service.id)}
+                        placeholder="0"
+                        suffix="lin ft"
+                      />
+                    </Field>
+                  ))}
+                </div>
+              )}
+
+              {eachServices.length > 0 && (
+                <div className="subgroup">
+                  <h3>Count</h3>
+                  {eachServices.map((service) => (
+                    <Field key={service.id} label={service.name}>
+                      <NumInput
+                        value={job.serviceQty[service.id] ?? ''}
+                        onChange={setNested('serviceQty', service.id)}
+                        placeholder="0"
+                        suffix="ea"
+                      />
+                    </Field>
+                  ))}
+                </div>
+              )}
+
+              {hasSnowServices && (
+                <div className="subgroup">
+                  <h3>Snow conditions</h3>
+                  <p className="subgroup-hint">
+                    Plowing and shoveling scale with depth; every snow service multiplies by the
+                    number of pushes. Quoting a seasonal contract? Enter the visits you expect.
+                  </p>
+                  <Field label="Snowfall depth">
+                    <div className="segmented">
+                      {SNOW_DEPTH.map((d) => (
+                        <button
+                          key={d.id}
+                          type="button"
+                          className={job.snowDepth === d.id ? 'on' : ''}
+                          onClick={() => set('snowDepth')(d.id)}
+                        >
+                          {d.label}
+                        </button>
+                      ))}
+                    </div>
+                  </Field>
+                  <Field label="Pushes / visits">
+                    <NumInput
+                      value={job.snowVisits}
+                      onChange={set('snowVisits')}
+                      placeholder="1"
+                      suffix="visits"
+                    />
+                  </Field>
                 </div>
               )}
             </Section>
@@ -676,6 +764,8 @@ export default function App() {
             onSend={sendToOffice}
             onNew={startNew}
             onBack={() => setStep(2)}
+            pdfState={pdfState}
+            onDownloadPdf={downloadPdf}
           />
         )}
       </main>
@@ -740,7 +830,19 @@ function NumInput({ value, onChange, placeholder, suffix }) {
   )
 }
 
-function Quote({ job, est, company, photoCount, sendState, sendError, onSend, onNew, onBack }) {
+function Quote({
+  job,
+  est,
+  company,
+  photoCount,
+  sendState,
+  sendError,
+  onSend,
+  onNew,
+  onBack,
+  pdfState,
+  onDownloadPdf,
+}) {
   const officeName = company?.contactName?.trim() || 'the office'
   const officeEmail = company?.contactEmail?.trim() || '—'
   const businessName = company?.businessName?.trim() || 'your business'
@@ -919,10 +1021,20 @@ function Quote({ job, est, company, photoCount, sendState, sendError, onSend, on
 
       {sendState === 'error' && <p className="banner error">{sendError}</p>}
 
-      <footer className="footer">
-        <button type="button" className="btn ghost" onClick={onBack}>
-          Edit
-        </button>
+      <footer className="footer footer--stacked">
+        <div className="footer-row">
+          <button type="button" className="btn ghost" onClick={onBack}>
+            Edit
+          </button>
+          <button
+            type="button"
+            className="btn ghost"
+            onClick={onDownloadPdf}
+            disabled={pdfState === 'generating'}
+          >
+            {pdfState === 'generating' ? 'Building PDF…' : 'Download PDF'}
+          </button>
+        </div>
         <button
           type="button"
           className="btn primary"
@@ -1089,7 +1201,21 @@ function Login() {
   )
 }
 
-function Onboarding({ initial, onSave, onCancel, onReset, onSignOut }) {
+// Figures out which trade chips should show as checked for a business whose
+// Materials/Equipment predate the industry picker (or were never tagged) --
+// a trade counts as "on" if any of its starter service OR equipment ids are
+// already present, so the checkbox state matches what's actually there.
+function inferIndustries(materials, equipment) {
+  const materialIds = new Set((materials ?? []).map((m) => m.id))
+  const equipmentIds = new Set((equipment ?? []).map((e) => e.id))
+  return INDUSTRIES.filter(
+    (ind) =>
+      (INDUSTRY_SERVICES[ind.id] ?? []).some((s) => materialIds.has(s.id)) ||
+      (INDUSTRY_EQUIPMENT[ind.id] ?? []).some((e) => equipmentIds.has(e.id)),
+  ).map((ind) => ind.id)
+}
+
+function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId }) {
   const [obStep, setObStep] = useState(onCancel ? 1 : 0)
   const [confirmReset, setConfirmReset] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -1110,9 +1236,68 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut }) {
     marginPct: String(Math.round((initial.defaultMargin ?? PROFIT_MARGIN) * 100)),
     materials: (initial.materials ?? []).map((m) => ({ ...m, rate: String(m.rate ?? '') })),
     equipment: (initial.equipment ?? []).map((e) => ({ ...e, rate: String(e.rate ?? '') })),
+    logoUrl: initial.logoUrl ?? '',
+    brandColor: initial.brandColor || '#1f6f45',
+    industries:
+      initial.industries && initial.industries.length
+        ? initial.industries
+        : inferIndustries(initial.materials, initial.equipment),
   }))
 
+  const [logoUploading, setLogoUploading] = useState(false)
+  const [logoError, setLogoError] = useState('')
+
+  const handleLogoFile = async (file) => {
+    if (!file || !ownerId) return
+    setLogoError('')
+    setLogoUploading(true)
+    try {
+      const url = await uploadLogo(file, ownerId)
+      setField('logoUrl')(url)
+    } catch (err) {
+      setLogoError(err?.message || 'Upload failed. Try a smaller image.')
+    } finally {
+      setLogoUploading(false)
+    }
+  }
+
   const setField = (key) => (value) => setForm((f) => ({ ...f, [key]: value }))
+
+  // Checking a trade seeds its starter Materials AND Equipment (skipping any
+  // id already present); unchecking removes exactly that trade's starter
+  // items (by id) so the lists only have what's necessary for what's
+  // checked. Anything you've added yourself is never touched -- custom
+  // entries don't carry an industry id.
+  const toggleIndustry = (id) =>
+    setForm((f) => {
+      const has = f.industries.includes(id)
+      const serviceTemplate = INDUSTRY_SERVICES[id] ?? []
+      const equipmentTemplate = INDUSTRY_EQUIPMENT[id] ?? []
+      const serviceIds = new Set(serviceTemplate.map((s) => s.id))
+      const equipmentIds = new Set(equipmentTemplate.map((e) => e.id))
+      if (has) {
+        return {
+          ...f,
+          industries: f.industries.filter((i) => i !== id),
+          materials: f.materials.filter((m) => !serviceIds.has(m.id)),
+          equipment: f.equipment.filter((e) => !equipmentIds.has(e.id)),
+        }
+      }
+      const existingServiceIds = new Set(f.materials.map((m) => m.id))
+      const serviceAdditions = serviceTemplate
+        .filter((s) => !existingServiceIds.has(s.id))
+        .map((s) => ({ ...s, rate: String(s.rate ?? '') }))
+      const existingEquipmentIds = new Set(f.equipment.map((e) => e.id))
+      const equipmentAdditions = equipmentTemplate
+        .filter((e) => !existingEquipmentIds.has(e.id))
+        .map((e) => ({ ...e, rate: String(e.rate ?? '') }))
+      return {
+        ...f,
+        industries: [...f.industries, id],
+        materials: [...f.materials, ...serviceAdditions],
+        equipment: [...f.equipment, ...equipmentAdditions],
+      }
+    })
 
   const updateMaterial = (index, patch) =>
     setForm((f) => ({
@@ -1166,6 +1351,7 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut }) {
       minJobCharge: num(form.minJobCharge) || 0,
       tripMinimum: num(form.tripMinimum) || 0,
       defaultMargin: pct / 100,
+      industries: form.industries,
       materials: form.materials
         .filter((m) => m.name.trim() !== '')
         .map((m) => ({
@@ -1178,6 +1364,8 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut }) {
         equipment: form.equipment
           .filter((e) => e.name.trim() !== '')
           .map((e) => ({ id: e.id, name: e.name.trim(), rate: num(e.rate) || 0 })),
+        logoUrl: form.logoUrl || '',
+        brandColor: form.brandColor || '#1f6f45',
       })
     } finally {
       setSaving(false)
@@ -1348,6 +1536,33 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut }) {
 
         {obStep === 2 && (
           <>
+            <Section
+              title="What you do"
+              hint="Adds a starter set of services and equipment for that trade — edit or remove anything you don't need."
+            >
+              <div className="service-list">
+                {INDUSTRIES.map((ind) => {
+                  const on = form.industries.includes(ind.id)
+                  return (
+                    <button
+                      key={ind.id}
+                      type="button"
+                      className={`service ${on ? 'on' : ''}`}
+                      onClick={() => toggleIndustry(ind.id)}
+                      aria-pressed={on}
+                    >
+                      <span className="check" aria-hidden="true">
+                        {on ? '✓' : ''}
+                      </span>
+                      <span className="service-text">
+                        <strong>{ind.name}</strong>
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </Section>
+
             <Section title="Business" hint="The business these quotes go out under.">
               <Field label="Business name" required>
                 <input
@@ -1361,6 +1576,37 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut }) {
                   value={form.shopAddress}
                   onChange={(e) => setField('shopAddress')(e.target.value)}
                   placeholder="142 Depot St, Littleton MA"
+                />
+              </Field>
+            </Section>
+
+            <Section title="Branding" hint="Shown on the PDF quotes you send customers.">
+              <Field label="Logo">
+                <div className="logo-row">
+                  {form.logoUrl && <img src={form.logoUrl} alt="" className="logo-preview" />}
+                  <label className="btn ghost logo-upload-btn">
+                    {logoUploading ? 'Uploading...' : form.logoUrl ? 'Change logo' : 'Upload logo'}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      hidden
+                      disabled={logoUploading}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handleLogoFile(file)
+                        e.target.value = ''
+                      }}
+                    />
+                  </label>
+                </div>
+                {logoError && <p className="auth-error">{logoError}</p>}
+              </Field>
+              <Field label="Brand color">
+                <input
+                  type="color"
+                  className="color-input"
+                  value={form.brandColor}
+                  onChange={(e) => setField('brandColor')(e.target.value)}
                 />
               </Field>
             </Section>
@@ -1414,28 +1660,24 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut }) {
                     onChange={(e) => updateMaterial(i, { name: e.target.value })}
                     placeholder="Material name"
                   />
-                  <div className="segmented small">
-                    {[
-                      ['yard', 'yd³'],
-                      ['sqft', 'sq ft'],
-                      ['tbd', 'TBD'],
-                    ].map(([unit, label]) => (
-                      <button
-                        key={unit}
-                        type="button"
-                        className={m.unit === unit ? 'on' : ''}
-                        onClick={() => updateMaterial(i, { unit })}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
+                  <select
+                    className="unit-select"
+                    value={m.unit}
+                    onChange={(e) => updateMaterial(i, { unit: e.target.value })}
+                    aria-label={`Unit for ${m.name || 'material'}`}
+                  >
+                    <option value="yard">Cubic yards</option>
+                    <option value="sqft">Square feet</option>
+                    <option value="each">Each</option>
+                    <option value="linear-ft">Linear feet</option>
+                    <option value="tbd">TBD (priced separately)</option>
+                  </select>
                   {m.unit !== 'tbd' && (
                     <NumInput
                       value={m.rate}
                       onChange={(v) => updateMaterial(i, { rate: v })}
                       placeholder="0"
-                      suffix={m.unit === 'yard' ? '$/yd³' : '$/sqft'}
+                      suffix={`$/${UNIT_LABEL[m.unit]}`}
                     />
                   )}
                   <input
