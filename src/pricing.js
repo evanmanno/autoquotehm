@@ -159,7 +159,7 @@ export const INDUSTRY_SERVICES = {
 // starter service with the same id. Anything else lands in "Other".
 export const CATEGORIES = [
   { id: 'maintenance', name: 'Maintenance' },
-  { id: 'construction', name: 'Planting & Installs' },
+  { id: 'construction', name: 'Landscape Construction' },
   { id: 'hardscape', name: 'Hardscape & Construction' },
   { id: 'snow', name: 'Snow & Ice' },
   { id: 'lighting', name: 'Lighting' },
