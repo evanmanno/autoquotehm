@@ -46,10 +46,7 @@ export const EQUIPMENT = [
 // SERVICES/EQUIPMENT: confirm and adjust before quoting real customers.
 export const INDUSTRIES = [
   { id: 'landscaping', name: 'Landscaping' },
-  { id: 'lighting', name: 'Holiday / Permanent Lighting' },
-  { id: 'window-cleaning', name: 'Window Cleaning' },
   { id: 'hardscaping', name: 'Hardscaping' },
-  { id: 'pressure-washing', name: 'Pressure Washing' },
   { id: 'snow', name: 'Snow Plowing & Salting' },
 ]
 
@@ -68,21 +65,9 @@ export const SNOW_DEPTH = [
 // also seeds the day-rate gear that trade typically bills separately.
 export const INDUSTRY_EQUIPMENT = {
   landscaping: EQUIPMENT,
-  lighting: [
-    { id: 'lighting-lift', name: 'Lift / Extra-Reach Ladder', rate: 75 },
-    { id: 'lighting-cordreel', name: 'Extension Cord Reel', rate: 15 },
-  ],
-  'window-cleaning': [
-    { id: 'wc-waterfed-pole', name: 'Water-Fed Pole System', rate: 40 },
-    { id: 'wc-lift', name: 'Lift (2nd story+)', rate: 150 },
-  ],
   hardscaping: [
     { id: 'hardscape-compactor', name: 'Plate Compactor', rate: 65 },
     { id: 'hardscape-miniex', name: 'Mini Excavator (rental)', rate: 275 },
-  ],
-  'pressure-washing': [
-    { id: 'pw-rig', name: 'Pressure Washer Rig', rate: 50 },
-    { id: 'pw-surface-cleaner', name: 'Surface Cleaner Attachment', rate: 35 },
   ],
   snow: [
     { id: 'snow-truck', name: 'Plow Truck', rate: 300 },
@@ -110,36 +95,7 @@ export const HARDSCAPE_SERVICES = [
 
 export const INDUSTRY_SERVICES = {
   landscaping: [...SERVICES, ...HARDSCAPE_SERVICES],
-  lighting: [
-    {
-      id: 'lighting-roofline',
-      name: 'Roofline Lighting',
-      unit: 'linear-ft',
-      rate: 6,
-      note: 'material + install',
-      category: 'lighting',
-    },
-    { id: 'lighting-tree-wrap', name: 'Tree Wrap Lighting', unit: 'each', rate: 45, note: 'per tree', category: 'lighting' },
-    { id: 'lighting-bush-wrap', name: 'Bush / Shrub Wrap', unit: 'each', rate: 20, note: 'per bush', category: 'lighting' },
-    { id: 'lighting-controller', name: 'Timer / Controller', unit: 'each', rate: 35, category: 'lighting' },
-    { id: 'lighting-takedown', name: 'Takedown & Storage', unit: 'tbd', category: 'lighting' },
-    { id: 'lighting-design', name: 'Custom Design Consult', unit: 'tbd', category: 'lighting' },
-  ],
-  'window-cleaning': [
-    { id: 'window-standard', name: 'Standard Window (in & out)', unit: 'each', rate: 8, category: 'window-cleaning' },
-    { id: 'window-french', name: 'French Pane Window', unit: 'each', rate: 12, category: 'window-cleaning' },
-    { id: 'window-screen', name: 'Screen Cleaning', unit: 'each', rate: 3, category: 'window-cleaning' },
-    { id: 'window-track', name: 'Track & Sill Detail', unit: 'each', rate: 4, category: 'window-cleaning' },
-    { id: 'window-hard-water', name: 'Hard Water Stain Removal', unit: 'tbd', category: 'window-cleaning' },
-  ],
   hardscaping: HARDSCAPE_SERVICES,
-  'pressure-washing': [
-    { id: 'pw-driveway', name: 'Driveway / Concrete', unit: 'sqft', rate: 0.25, category: 'pressure-washing' },
-    { id: 'pw-siding', name: 'House Siding (soft wash)', unit: 'sqft', rate: 0.3, category: 'pressure-washing' },
-    { id: 'pw-deck-fence', name: 'Deck / Fence', unit: 'sqft', rate: 0.35, category: 'pressure-washing' },
-    { id: 'pw-roof', name: 'Roof Wash (soft wash)', unit: 'sqft', rate: 0.4, category: 'pressure-washing' },
-    { id: 'pw-gutter', name: 'Gutter Brightening', unit: 'linear-ft', rate: 2.5, category: 'pressure-washing' },
-  ],
   // perVisit: the quantity is multiplied by the number of pushes/visits on the
   // job (1 for a one-off storm, e.g. 14 for a seasonal contract).
   // depthScaled: the rate is multiplied by the snow-depth tier.
@@ -162,9 +118,6 @@ export const CATEGORIES = [
   { id: 'construction', name: 'Landscape Construction' },
   { id: 'hardscape', name: 'Hardscape & Construction' },
   { id: 'snow', name: 'Snow & Ice' },
-  { id: 'lighting', name: 'Lighting' },
-  { id: 'window-cleaning', name: 'Window Cleaning' },
-  { id: 'pressure-washing', name: 'Pressure Washing' },
   { id: 'other', name: 'Other' },
 ]
 
@@ -175,8 +128,12 @@ Object.values(INDUSTRY_SERVICES).forEach((list) =>
   }),
 )
 
-export const categoryOf = (service) =>
-  service.category || SEED_CATEGORY[service.id] || 'other'
+// Anything whose tab no longer exists (e.g. a retired trade) shows under Other.
+const CATEGORY_IDS = new Set(CATEGORIES.map((c) => c.id))
+export const categoryOf = (service) => {
+  const id = service.category || SEED_CATEGORY[service.id] || 'other'
+  return CATEGORY_IDS.has(id) ? id : 'other'
+}
 
 // Flags that make a snow service behave differently in the math; restored from
 // the starter list so they survive an old save that didn't keep them.

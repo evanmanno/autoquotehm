@@ -130,10 +130,7 @@ export function buildCustomerLines(est) {
 const SAGE = '#5b8f7e'
 const TRADE_TITLES = {
   landscaping: 'LANDSCAPING',
-  lighting: 'LIGHTING',
-  'window-cleaning': 'WINDOW CLEANING',
   hardscaping: 'HARDSCAPING',
-  'pressure-washing': 'PRESSURE WASHING',
   snow: 'SNOW',
 }
 
