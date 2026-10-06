@@ -23,6 +23,16 @@ import logoIcon from './assets/logo-icon.png'
 import { getInitialSession, onAuthChange, signIn, signOut, signUp } from './lib/auth'
 import { deleteCompany, fetchCompany, saveCompany, uploadLogo } from './lib/companyStore'
 import { buildQuotePdf } from './lib/quotePdf'
+import {
+  acceptPendingInvite,
+  captureInviteFromUrl,
+  clearPendingInvite,
+  fetchMyMember,
+  getPendingInvite,
+  saveQuote,
+} from './lib/teamStore'
+import { SavedQuotes, Team } from './Team'
+import './team.css'
 
 const STEPS = ['Property', 'Services', 'Job Details', 'Quote']
 
@@ -108,6 +118,13 @@ export default function App() {
   const [sendState, setSendState] = useState('idle') // idle | sending | sent | error
   const [sendError, setSendError] = useState('')
   const [pdfState, setPdfState] = useState('idle') // idle | generating
+  const [view, setView] = useState('new') // new | quotes | team
+  const [me, setMe] = useState(null) // this login's row in the company's team
+  const [savedQuoteId, setSavedQuoteId] = useState(null)
+  const [saveState, setSaveState] = useState('idle') // idle | saving | saved | error
+  const [hasInvite] = useState(captureInviteFromUrl)
+  const [inviteError, setInviteError] = useState('')
+  const [inviteJoined, setInviteJoined] = useState(false)
   const topRef = useRef(null)
 
   // Photos hold blob URLs, so they are intentionally left out of the draft.
@@ -142,19 +159,38 @@ export default function App() {
   }, [])
 
   // Load this business's profile/materials/equipment from the database
-  // whenever the logged-in account changes.
+  // whenever the logged-in account changes. If the person arrived through an
+  // invite link, join that company first so they land on its data instead of
+  // an empty onboarding screen.
   useEffect(() => {
     if (!session) {
       setCompany(null)
+      setMe(null)
       setCompanyLoading(false)
       return
     }
     let active = true
     setCompanyLoading(true)
-    fetchCompany()
-      .then((c) => {
-        if (active) setCompany(c)
-      })
+    ;(async () => {
+      if (getPendingInvite()) {
+        const res = await acceptPendingInvite()
+        if (active) {
+          if (res.ok) setInviteJoined(res.joined)
+          else setInviteError(res.message)
+        }
+      }
+      const c = await fetchCompany()
+      if (!active) return
+      setCompany(c)
+      if (c) {
+        try {
+          const m = await fetchMyMember(session.user.id)
+          if (active) setMe(m)
+        } catch (err) {
+          console.error('Failed to load team membership:', err)
+        }
+      }
+    })()
       .catch((err) => {
         console.error('Failed to load company:', err)
         if (active) setCompany(null)
@@ -232,12 +268,73 @@ export default function App() {
       return prev.filter((p) => p.id !== id)
     })
 
+  // Owner is whoever created the company; everyone else is an estimator.
+  const isOwner = Boolean(company) && (company.ownerId == null || company.ownerId === session?.user?.id)
+
+  // "Prepared by" follows the person using the app, not the company owner.
+  const preparer = {
+    name: me?.displayName || (isOwner ? company?.crewMemberName : '') || '',
+    phone: me?.phone || (isOwner ? company?.yourPhone : '') || '',
+    email: me?.email || (isOwner ? company?.yourEmail : '') || session?.user?.email || '',
+  }
+  const companyForQuote = company
+    ? {
+        ...company,
+        crewMemberName: preparer.name,
+        yourPhone: preparer.phone,
+        yourEmail: preparer.email,
+      }
+    : company
+
+  // Saves (or updates) this job in the company's shared quote list. Passing a
+  // status sets it; leaving it out keeps whatever the quote is already marked.
+  const persistQuote = async (status) => {
+    if (!company?.id) return
+    setSaveState('saving')
+    try {
+      const row = await saveQuote({
+        id: savedQuoteId,
+        companyId: company.id,
+        job,
+        est,
+        status,
+        createdByName: preparer.name || preparer.email,
+      })
+      setSavedQuoteId(row.id)
+      setSaveState('saved')
+    } catch (err) {
+      console.error('Saving quote failed:', err)
+      setSaveState('error')
+    }
+  }
+
+  // Every quote is saved automatically the moment it reaches the Quote step.
+  useEffect(() => {
+    if (step === 3 && view === 'new') persistQuote()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, view])
+
+  const openSavedQuote = (q) => {
+    if (!q.job) {
+      alert('This quote was saved before reopening was supported.')
+      return
+    }
+    setJob({ ...emptyJob, ...q.job })
+    setSavedQuoteId(q.id)
+    setSaveState('saved')
+    setSendState('idle')
+    setSendError('')
+    setView('new')
+    setStep(3)
+  }
+
   const sendToOffice = async () => {
     setSendState('sending')
     setSendError('')
     try {
-      await sendQuote(job, est, photos.length, company)
+      await sendQuote(job, est, photos.length, companyForQuote)
       setSendState('sent')
+      persistQuote('sent')
     } catch (err) {
       setSendError(err?.text || err?.message || 'Email failed to send.')
       setSendState('error')
@@ -260,6 +357,8 @@ export default function App() {
     photos.forEach((p) => URL.revokeObjectURL(p.url))
     setPhotos([])
     setJob(emptyJob)
+    setSavedQuoteId(null)
+    setSaveState('idle')
     setSendState('idle')
     setSendError('')
     setStep(0)
@@ -274,9 +373,15 @@ export default function App() {
     photos.forEach((p) => URL.revokeObjectURL(p.url))
     setPhotos([])
     setJob(emptyJob)
+    setSavedQuoteId(null)
+    setSaveState('idle')
     setSendState('idle')
     setSendError('')
     setStep(0)
+    setView('new')
+    setMe(null)
+    setInviteError('')
+    setInviteJoined(false)
     setEditingCompany(false)
     setOnboardingKey((k) => k + 1)
   }
@@ -314,10 +419,56 @@ export default function App() {
   }
 
   if (!session) {
-    return <Login />
+    return <Login invited={hasInvite} />
   }
 
-  if (!company || editingCompany) {
+  // They followed an invite link but it couldn't be used (wrong email, used,
+  // expired). Say so plainly instead of dropping them into onboarding.
+  if (inviteError && !company) {
+    return (
+      <div className="app">
+        <header className="topbar">
+          <div className="topbar-row">
+            <div className="brand">
+              <span className="mark">
+                <img src={logoIcon} alt="" />
+              </span>
+              <span className="brand-text">AutoQuoteHM</span>
+            </div>
+          </div>
+        </header>
+        <main className="content">
+          <section className="card">
+            <header className="card-head">
+              <h2>That invite didn't work</h2>
+              <p>{inviteError}</p>
+            </header>
+            <p className="subgroup-hint">
+              Signed in as {session.user.email}. If this is the wrong account, sign out and
+              use the email your admin invited.
+            </p>
+          </section>
+          <footer className="footer footer--stacked">
+            <button type="button" className="btn primary" onClick={signOutNow}>
+              Sign out
+            </button>
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={() => {
+                clearPendingInvite()
+                setInviteError('')
+              }}
+            >
+              Set up my own business instead
+            </button>
+          </footer>
+        </main>
+      </div>
+    )
+  }
+
+  if (!company || (editingCompany && isOwner)) {
     return (
       <Onboarding
         key={onboardingKey}
@@ -363,13 +514,31 @@ export default function App() {
             <button
               type="button"
               className="profile-btn"
-              onClick={() => setEditingCompany(true)}
+              onClick={() => (isOwner ? setEditingCompany(true) : setView('team'))}
             >
-              {company.crewMemberName || 'Profile'}
+              {preparer.name || 'Profile'}
             </button>
           </div>
         </div>
 
+        <nav className="nav-tabs" aria-label="Sections">
+          {[
+            ['new', 'New quote'],
+            ['quotes', 'Saved quotes'],
+            ['team', 'Team'],
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={`nav-tab ${view === id ? 'on' : ''}`}
+              onClick={() => setView(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+
+        {view === 'new' && (
         <div className="progress">
           <div className="track">
             <div
@@ -391,10 +560,33 @@ export default function App() {
             ))}
           </div>
         </div>
+        )}
       </header>
 
       <main className="content">
-        {step === 0 && (
+        {view === 'quotes' && (
+          <SavedQuotes
+            companyId={company.id}
+            isOwner={isOwner}
+            userId={session.user.id}
+            onOpen={openSavedQuote}
+          />
+        )}
+        {view === 'team' && (
+          <Team
+            company={company}
+            isOwner={isOwner}
+            me={me}
+            userId={session.user.id}
+            onProfileSaved={(p) => setMe((m) => (m ? { ...m, ...p } : m))}
+          />
+        )}
+        {view === 'new' && inviteJoined && (
+          <p className="banner warn invite-banner">
+            You joined {company.businessName || 'the team'}. Quotes use the company's prices.
+          </p>
+        )}
+        {view === 'new' && step === 0 && (
           <Section
             title="Property Info"
             hint="Who and where. Everything else builds off this."
@@ -428,7 +620,7 @@ export default function App() {
           </Section>
         )}
 
-        {step === 1 && (
+        {view === 'new' && step === 1 && (
           <Section
             title="Services Needed"
             hint="Tap everything this job covers. You can change it later."
@@ -467,7 +659,7 @@ export default function App() {
           </Section>
         )}
 
-        {step === 2 && (
+        {view === 'new' && step === 2 && (
           <>
             <Section title="Job Details" hint="Measurements drive the material cost.">
               <Field label="Property square footage">
@@ -753,7 +945,7 @@ export default function App() {
           </>
         )}
 
-        {step === 3 && (
+        {view === 'new' && step === 3 && (
           <Quote
             job={job}
             est={est}
@@ -766,11 +958,12 @@ export default function App() {
             onBack={() => setStep(2)}
             pdfState={pdfState}
             onDownloadPdf={downloadPdf}
+            saveState={saveState}
           />
         )}
       </main>
 
-      {step < STEPS.length - 1 && (
+      {view === 'new' && step < STEPS.length - 1 && (
         <footer className="footer">
           {step > 0 && (
             <button type="button" className="btn ghost" onClick={() => setStep(step - 1)}>
@@ -842,6 +1035,7 @@ function Quote({
   onBack,
   pdfState,
   onDownloadPdf,
+  saveState,
 }) {
   const officeName = company?.contactName?.trim() || 'the office'
   const officeEmail = company?.contactEmail?.trim() || '—'
@@ -1021,6 +1215,16 @@ function Quote({
 
       {sendState === 'error' && <p className="banner error">{sendError}</p>}
 
+      {saveState === 'saved' && (
+        <p className="saved-note">Saved to your company's quotes</p>
+      )}
+      {saveState === 'error' && (
+        <p className="banner error">
+          This quote couldn't be saved to your company's list. It will retry when you come
+          back to this screen. You can still send it or download the PDF.
+        </p>
+      )}
+
       <footer className="footer footer--stacked">
         <div className="footer-row">
           <button type="button" className="btn ghost" onClick={onBack}>
@@ -1065,8 +1269,8 @@ function Quote({
 
 const FORM_STEPS = ['Sign In', 'Business', 'Materials', 'Equipment', 'Rates', 'Margins']
 
-function Login() {
-  const [mode, setMode] = useState('signin') // signin | signup
+function Login({ invited }) {
+  const [mode, setMode] = useState(invited ? 'signup' : 'signin') // signin | signup
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
@@ -1151,6 +1355,12 @@ function Login() {
             <img src={logoIcon} alt="" />
           </span>
           <h1>{mode === 'signup' ? 'Create your account' : 'Welcome back'}</h1>
+          {invited && (
+            <p className="banner warn invite-banner">
+              You've been invited to join a team. Create your account (or sign in) with the
+              email address you were invited at.
+            </p>
+          )}
           <p>
             {mode === 'signup'
               ? "One login for your whole business \u2014 use it on any device."

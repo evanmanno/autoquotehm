@@ -31,6 +31,8 @@ function toDbRow(company, ownerId) {
 function fromDbRow(row) {
   if (!row) return null
   return {
+    id: row.id,
+    ownerId: row.owner_id,
     businessName: row.business_name ?? '',
     shopAddress: row.shop_address ?? '',
     contactName: row.contact_name ?? '',
