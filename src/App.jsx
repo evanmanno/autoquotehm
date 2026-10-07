@@ -414,7 +414,7 @@ export default function App() {
   }
 
   const quickSignOut = () => {
-    if (window.confirm('Sign out of AutoQuoteHM on this device?')) {
+    if (window.confirm('Sign out of Pricr on this device?')) {
       signOutNow()
     }
   }
@@ -460,7 +460,7 @@ export default function App() {
               <span className="mark">
                 <img src={logoIcon} alt="" />
               </span>
-              <span className="brand-text">AutoQuoteHM</span>
+              <span className="brand-text">Pricr</span>
             </div>
           </div>
         </header>
@@ -531,7 +531,7 @@ export default function App() {
               <img src={logoIcon} alt="" />
             </span>
             <span className="brand-text">
-              AutoQuoteHM
+              Pricr
               <small>{company.businessName || 'Quote Estimator'}</small>
             </span>
           </div>
@@ -1404,7 +1404,7 @@ function Login({ invited }) {
               <span className="mark">
                 <img src={logoIcon} alt="" />
               </span>
-              <span className="brand-text">AutoQuoteHM</span>
+              <span className="brand-text">Pricr</span>
             </div>
           </div>
         </header>
@@ -1442,7 +1442,7 @@ function Login({ invited }) {
             <span className="mark">
               <img src={logoIcon} alt="" />
             </span>
-            <span className="brand-text">AutoQuoteHM</span>
+            <span className="brand-text">Pricr</span>
           </div>
         </div>
       </header>
@@ -1461,7 +1461,7 @@ function Login({ invited }) {
           <p>
             {mode === 'signup'
               ? "One login for your whole business \u2014 use it on any device."
-              : 'Sign in to your AutoQuoteHM account.'}
+              : 'Sign in to your Pricr account.'}
           </p>
           <form className="auth-form" onSubmit={submit}>
             <Field label="Email" required>
@@ -1782,7 +1782,7 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
               <img src={logoIcon} alt="" />
             </span>
             <span className="brand-text">
-              AutoQuoteHM
+              Pricr
               <small>{form.businessName || 'Quote Estimator'}</small>
             </span>
           </div>
@@ -1830,7 +1830,7 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
             <span className="hero-mark" aria-hidden="true">
               <img src={logoIcon} alt="" />
             </span>
-            <h1>Welcome to AutoQuoteHM</h1>
+            <h1>Welcome to Pricr</h1>
             <p>
               Turn a site walk into an accurate, on-brand quote in minutes — right from
               your phone.
@@ -1862,7 +1862,7 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
         )}
 
         {obStep === 1 && (
-          <Section title="Sign In" hint="Who's using AutoQuoteHM on this device.">
+          <Section title="Sign In" hint="Who's using Pricr on this device.">
             <Field label="Your name" required>
               <input
                 value={form.crewMemberName}
@@ -2335,7 +2335,7 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                   <div className="danger-confirm">
                     <p>
                       This permanently deletes your business info, contacts, materials,
-                      equipment and rates from AutoQuoteHM's servers, then signs you out.
+                      equipment and rates from Pricr's servers, then signs you out.
                       This can't be undone.
                     </p>
                     <div className="row">

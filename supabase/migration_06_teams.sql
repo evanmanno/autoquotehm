@@ -1,4 +1,4 @@
--- AutoQuoteHM: teams (multi-user), invites, and saved quotes.
+-- Pricr: teams (multi-user), invites, and saved quotes.
 --
 -- Run this ONCE in the Supabase SQL Editor (Project -> SQL Editor -> New query
 -- -> paste -> Run). Safe to re-run. BACK UP FIRST (Project Settings -> Database

@@ -1,4 +1,4 @@
--- AutoQuoteHM: AI concept renderings (photo + quote -> projected-result image).
+-- Pricr: AI concept renderings (photo + quote -> projected-result image).
 --
 -- Run ONCE in the Supabase SQL Editor after migration_06. Safe to re-run.
 --

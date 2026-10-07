@@ -1,4 +1,4 @@
-# AutoQuoteHM
+# Pricr
 
 Mobile-first job-quoting tool for landscaping and home-service contractors.
 A crew member fills in a job on-site — Property Info → Services → Job

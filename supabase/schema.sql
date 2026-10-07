@@ -1,4 +1,4 @@
--- AutoQuoteHM multi-tenant schema
+-- Pricr multi-tenant schema
 -- Run this once in the Supabase SQL Editor (Project -> SQL Editor -> New query -> paste -> Run)
 
 create extension if not exists "pgcrypto";

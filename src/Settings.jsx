@@ -215,7 +215,7 @@ export function SettingsHub({
             <div className="s-confirm">
               <p>
                 This permanently deletes your business info, services, equipment, rates and
-                team from AutoQuoteHM, then signs you out. It can't be undone.
+                team from Pricr, then signs you out. It can't be undone.
               </p>
               <div className="s-confirm-row">
                 <button type="button" className="btn ghost" onClick={() => setConfirmDelete(false)}>
@@ -230,7 +230,7 @@ export function SettingsHub({
         </Group>
       )}
 
-      <p className="saved-note">AutoQuoteHM</p>
+      <p className="saved-note">Pricr</p>
     </div>
   )
 }
