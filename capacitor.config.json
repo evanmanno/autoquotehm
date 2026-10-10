@@ -1,0 +1,16 @@
+{
+  "appId": "com.pricr.app",
+  "appName": "Pricr",
+  "webDir": "dist",
+  "backgroundColor": "#0d0f11",
+  "ios": {
+    "contentInset": "never"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": false,
+      "backgroundColor": "#0d0f11",
+      "showSpinner": false
+    }
+  }
+}

@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import './settings.css'
 import { getTheme, setTheme } from './lib/theme'
+import LangToggle from './LangToggle'
+import { tr } from './lib/i18n'
+import { SHOW_PLANS } from './lib/plans'
 
 // Small stroke icons (24x24 grid) so the settings list reads like an app.
 const ICONS = {
@@ -14,6 +17,8 @@ const ICONS = {
   logout: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
   trash: 'M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6',
   list: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
+  cube: 'M21 8 12 3 3 8v8l9 5 9-5zM3 8l9 5 9-5M12 13v8',
+  doc: 'M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h8',
   percent: 'M19 5 5 19M6.5 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM17.5 20a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z',
   chevron: 'M9 6l6 6-6 6',
 }
@@ -79,17 +84,22 @@ export function SettingsHub({
   email,
   memberCount,
   onEdit,
+  plan,
+  used,
+  onOpenPlan,
   onOpenTeam,
   onSignOut,
   onDeleteAll,
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [theme, setThemeState] = useState(getTheme)
-  const name = me?.displayName || company.crewMemberName || email || 'You'
+  const name = me?.displayName || company.crewMemberName || email || tr('You')
   const initial = (name || '?').trim().charAt(0).toUpperCase()
   const materialCount = (company.materials ?? []).length
   const equipmentCount = (company.equipment ?? []).length
   const marginPct = Math.round((company.defaultMargin ?? 0.5) * 100)
+  const customMaterialCount = (company.customMaterials ?? []).length
+  const employeeCount = (company.employees ?? []).length
 
   return (
     <div className="settings">
@@ -99,74 +109,83 @@ export function SettingsHub({
         </span>
         <div className="s-profile-text">
           <strong>{name}</strong>
-          <small>{company.businessName || 'Your business'}</small>
+          <small>{company.businessName || tr('Your business')}</small>
           <span className={`pill ${isOwner ? 'owner' : ''}`} style={{ marginLeft: 0 }}>
-            {isOwner ? 'Owner' : 'Estimator'}
+            {isOwner ? tr('Owner') : tr('Estimator')}
           </span>
         </div>
       </div>
 
       {isOwner && (
-        <Group title="Business settings">
+        <Group title={tr("Business settings")}>
           <Row
             icon="building"
-            title="Business profile & branding"
-            sub={company.businessName || 'Name, contact info, logo, brand color'}
+            title={tr("Business profile & branding")}
+            sub={company.businessName || tr('Name, contact info, logo, brand color')}
             onClick={() => onEdit(2)}
           />
           <Row
             icon="list"
-            title="Services you offer"
-            sub={`${materialCount} service${materialCount === 1 ? '' : 's'} · type in everything you do`}
+            title={tr("Services you offer")}
+            sub={tr(materialCount === 1 ? '{n} service · type in everything you do' : '{n} services · type in everything you do', { n: materialCount })}
             onClick={() => onEdit(3)}
           />
           <Row
             icon="tag"
-            title="Materials & pricing"
-            sub="Rates, units and notes for each service"
+            title={tr("Service pricing")}
+            sub={tr("Rates, units and notes for each service")}
             onClick={() => onEdit(4)}
           />
           <Row
-            icon="truck"
-            title="Equipment"
-            sub={`${equipmentCount} item${equipmentCount === 1 ? '' : 's'} · day rates`}
+            icon="cube"
+            title={tr("Materials")}
+            sub={tr(customMaterialCount === 1 ? '{n} material · what each one costs you' : '{n} materials · what each one costs you', { n: customMaterialCount })}
             onClick={() => onEdit(5)}
           />
           <Row
-            icon="sliders"
-            title="Labor, travel & disposal"
-            sub="Hourly rate, mileage, dump fees"
+            icon="truck"
+            title={tr("Equipment")}
+            sub={tr(equipmentCount === 1 ? '{n} item · day rates' : '{n} items · day rates', { n: equipmentCount })}
             onClick={() => onEdit(6)}
           />
           <Row
-            icon="percent"
-            title="Margins, minimums & tax"
-            sub={`Target margin ${marginPct}%${
-              company.salesTaxRate ? ` · ${company.salesTaxRate}% sales tax` : ''
-            }`}
+            icon="sliders"
+            title={tr("Rates, margins & employees")}
+            sub={
+              tr('Target margin {pct}%', { pct: marginPct }) +
+              ' · ' +
+              tr(employeeCount === 1 ? '{n} employee' : '{n} employees', { n: employeeCount }) +
+              (company.salesTaxRate ? tr(' · {rate}% sales tax', { rate: company.salesTaxRate }) : '')
+            }
             onClick={() => onEdit(7)}
+          />
+          <Row
+            icon="doc"
+            title={tr("Terms & payment")}
+            sub={company.terms ? tr('Custom terms on every quote') : tr('Payment terms and conditions on every quote')}
+            onClick={() => onEdit(8)}
           />
         </Group>
       )}
 
-      <Group title="Team settings">
+      <Group title={tr("Team settings")}>
         <Row
           icon="users"
-          title={isOwner ? 'Team & invites' : 'Your team'}
+          title={isOwner ? tr('Team & invites') : tr('Your team')}
           sub={
             isOwner
-              ? 'Invite estimators by email, remove people'
-              : 'See who is on your team and update your name'
+              ? tr('Invite estimators by email, remove people')
+              : tr('See who is on your team and update your name')
           }
           onClick={onOpenTeam}
         />
       </Group>
 
-      <Group title="Appearance">
-        <div className="s-theme" role="radiogroup" aria-label="Theme">
+      <Group title={tr("Appearance")}>
+        <div className="s-theme" role="radiogroup" aria-label={tr("Theme")}>
           {[
-            ['dark', 'Dark'],
-            ['light', 'Light'],
+            ['dark', tr('Dark')],
+            ['light', tr('Light')],
           ].map(([id, label]) => (
             <button
               key={id}
@@ -183,46 +202,66 @@ export function SettingsHub({
         </div>
       </Group>
 
-      <Group title="General settings">
+      <Group title={tr("Language")}>
+        <div className="s-lang">
+          <LangToggle />
+        </div>
+      </Group>
+
+      <Group title={tr("General settings")}>
         {isOwner && (
           <Row
             icon="user"
-            title="My name & phone"
-            sub="Shown as 'prepared by' on your quotes"
+            title={tr("My name & phone")}
+            sub={tr("Shown as 'prepared by' on your quotes")}
             onClick={() => onEdit(1)}
           />
         )}
-        <Row icon="card" title="Plan & billing" sub="Subscription and seats" disabled badge="Coming soon" />
+        {isOwner && plan && SHOW_PLANS && (
+          <Row
+            icon="card"
+            title={tr('Manage plan')}
+            sub={
+              used != null
+                ? tr('{plan} · {used} of {max} quotes used this month', {
+                    plan: tr(plan.name),
+                    used,
+                    max: plan.quotes,
+                  })
+                : tr(plan.name)
+            }
+            onClick={onOpenPlan}
+          />
+        )}
         <Row
           icon="logout"
-          title="Sign out"
-          sub={email ? `Signed in as ${email}` : undefined}
+          title={tr("Sign out")}
+          sub={email ? tr('Signed in as {email}', { email }) : undefined}
           onClick={onSignOut}
         />
       </Group>
 
       {isOwner && (
-        <Group title="Danger zone">
+        <Group title={tr("Danger zone")}>
           {!confirmDelete ? (
             <Row
               icon="trash"
-              title="Delete my business data"
-              sub="Permanently removes your account's business info"
+              title={tr("Delete my business data")}
+              sub={tr("Permanently removes your account's business info")}
               danger
               onClick={() => setConfirmDelete(true)}
             />
           ) : (
             <div className="s-confirm">
               <p>
-                This permanently deletes your business info, services, equipment, rates and
-                team from Pricr, then signs you out. It can't be undone.
+                {tr("This permanently deletes your business info, services, equipment, rates and team from Pricr, then signs you out. It can't be undone.")}
               </p>
               <div className="s-confirm-row">
                 <button type="button" className="btn ghost" onClick={() => setConfirmDelete(false)}>
-                  Cancel
+                  {tr("Cancel")}
                 </button>
                 <button type="button" className="btn danger" onClick={onDeleteAll}>
-                  Yes, delete everything
+                  {tr("Yes, delete everything")}
                 </button>
               </div>
             </div>
@@ -243,7 +282,7 @@ export function SettingsPage({ title, onBack, children }) {
         <span className="s-back-chev">
           <Icon name="chevron" />
         </span>
-        Settings
+        {tr("Settings")}
       </button>
       <h2 className="s-title">{title}</h2>
       {children}

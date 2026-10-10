@@ -35,9 +35,9 @@ export const SERVICES = [
 export const EQUIPMENT = [
   { id: 'skidsteer', name: 'Skid Steer', rate: 150 },
   { id: 'trailer', name: 'Dump Trailer', rate: 60 },
-  { id: 'miniex', name: 'Mini Excavator (rental)', rate: 275 },
+  { id: 'miniex', name: 'Mini Excavator', rate: 275 },
   { id: 'chainsaw', name: 'Chainsaw / Handheld Tools', rate: 25 },
-  { id: 'stumpgrinder', name: 'Stump Grinder (rental)', rate: 225 },
+  { id: 'stumpgrinder', name: 'Stump Grinder', rate: 225 },
 ]
 
 // A business picks its trade(s) during onboarding, which seeds its Materials
@@ -67,7 +67,7 @@ export const INDUSTRY_EQUIPMENT = {
   landscaping: EQUIPMENT,
   hardscaping: [
     { id: 'hardscape-compactor', name: 'Plate Compactor', rate: 65 },
-    { id: 'hardscape-miniex', name: 'Mini Excavator (rental)', rate: 275 },
+    { id: 'hardscape-miniex', name: 'Mini Excavator', rate: 275 },
   ],
   snow: [
     { id: 'snow-truck', name: 'Plow Truck', rate: 300 },
@@ -144,7 +144,27 @@ export const seedFlags = (id) => {
   return s ? { perVisit: s.perVisit, depthScaled: s.depthScaled } : {}
 }
 
-export const UNIT_LABEL = { yard: 'yd³', sqft: 'sq ft', each: 'ea', 'linear-ft': 'lin ft' }
+export const UNIT_LABEL = {
+  yard: 'yd³',
+  sqft: 'sq ft',
+  each: 'ea',
+  'linear-ft': 'lin ft',
+  ton: 'ton',
+  pallet: 'pallet',
+  bag: 'bag',
+}
+
+// Employee pay types. `hours` converts a wage to an hourly cost.
+export const EMPLOYEE_WAGE_TYPES = [
+  { id: 'hourly', label: 'Hourly', suffix: '$/hr', hours: 1 },
+  { id: 'daily', label: 'Daily', suffix: '$/day', hours: 8 },
+  { id: 'weekly', label: 'Weekly', suffix: '$/wk', hours: 40 },
+  { id: 'salary', label: 'Yearly salary', suffix: '$/yr', hours: 2080 },
+]
+export const employeeHourly = (emp) => {
+  const t = EMPLOYEE_WAGE_TYPES.find((x) => x.id === (emp?.wageType || 'hourly')) ?? EMPLOYEE_WAGE_TYPES[0]
+  return (parseFloat(emp?.wage) || 0) / t.hours
+}
 
 export const num = (v) => {
   const n = parseFloat(v)
@@ -188,6 +208,8 @@ export const snowDepthById = (id) => SNOW_DEPTH.find((d) => d.id === id) ?? SNOW
 export function estimate(job, company) {
   const materials = (company.materials ?? SERVICES).map((m) => ({ ...seedFlags(m.id), ...m }))
   const equipmentList = company.equipment ?? EQUIPMENT
+  const customMaterials = company.customMaterials ?? []
+  const employees = company.employees ?? []
   const laborRate = num(company.laborRate) || LABOR_RATE
   const mileageRate =
     company.mileageRate === '' || company.mileageRate == null
@@ -235,6 +257,7 @@ export function estimate(job, company) {
         rate,
         quantity,
         baseName: service.name,
+        note: service.note,
         baseQuantity,
         visits,
         depthLabel,
@@ -259,17 +282,48 @@ export function estimate(job, company) {
     })
 
   const materialCost = lineItems.reduce((sum, item) => sum + item.cost, 0)
+
+  // The company's own materials (e.g. different stones): quantity x what each costs.
+  const materialItems = Object.entries(job.materialQty ?? {})
+    .filter(([, q]) => num(q) > 0)
+    .map(([id, q]) => {
+      const m = customMaterials.find((x) => x.id === id)
+      const quantity = num(q)
+      const rate = num(m?.cost)
+      return {
+        id,
+        name: m?.name ?? id,
+        unit: m?.unit ?? 'each',
+        unitLabel: UNIT_LABEL[m?.unit] ?? 'ea',
+        note: m?.note,
+        rate,
+        quantity,
+        cost: quantity * rate,
+      }
+    })
+  const customMaterialCost = materialItems.reduce((sum, item) => sum + item.cost, 0)
+
+  // Labor: if employees are picked for the job, cost it from their real wages;
+  // otherwise crew members x the company labor rate, as before.
+  const staff = (job.employeeIds ?? [])
+    .map((id) => employees.find((e) => e.id === id))
+    .filter(Boolean)
   const laborHours = num(job.laborHours)
-  const crewMembers = num(job.crewMembers)
-  const laborCost = laborHours * crewMembers * laborRate
+  const crewMembers = staff.length > 0 ? staff.length : num(job.crewMembers)
+  const laborCost =
+    staff.length > 0
+      ? laborHours * staff.reduce((sum, e) => sum + employeeHourly(e), 0)
+      : laborHours * crewMembers * laborRate
+  const effectiveLaborRate =
+    staff.length > 0 && laborHours > 0 ? laborCost / (laborHours * crewMembers) : laborRate
   const equipmentCost = equipmentItems.reduce((sum, item) => sum + item.cost, 0)
   const driveMiles = num(job.driveMiles)
-  const travelCost = driveMiles * 2 * mileageRate // round trip
+  const travelCost = driveMiles * mileageRate // total miles driven
   const fuelCost = num(job.fuelCost)
   const dumpLoads = num(job.dumpLoads)
   const disposalCost = dumpLoads * dumpFee
   const totalCost =
-    materialCost + laborCost + equipmentCost + travelCost + fuelCost + disposalCost
+    materialCost + customMaterialCost + laborCost + equipmentCost + travelCost + fuelCost + disposalCost
   const rawQuotePrice = totalCost / (1 - margin)
   const belowMinimum = totalCost > 0 && rawQuotePrice < minJobCharge
   const quotePrice = belowMinimum ? minJobCharge : rawQuotePrice
@@ -277,11 +331,14 @@ export function estimate(job, company) {
 
   return {
     lineItems,
+    materialItems,
+    customMaterialCost,
+    staff,
     hasTbd: lineItems.some((item) => item.tbd),
     materialCost,
     laborHours,
     crewMembers,
-    laborRate,
+    laborRate: effectiveLaborRate,
     laborCost,
     equipmentItems,
     equipmentCost,

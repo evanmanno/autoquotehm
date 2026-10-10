@@ -104,8 +104,17 @@ export function buildEmailBody(job, est, photoCount, company) {
       .join(' | ')
     parts.push(`Equipment used: ${equipLines}`)
   }
+  if (est.materialItems.length) {
+    const matLines = est.materialItems
+      .map((item) => `${item.name} (${qty(item.quantity)} ${item.unitLabel})`)
+      .join(' | ')
+    parts.push(`Materials: ${matLines}`)
+  }
+  if (est.staff.length) {
+    parts.push(`Crew on this job: ${est.staff.map((e) => e.name).join(', ')}`)
+  }
   if (est.driveMiles > 0) {
-    parts.push(`Drive distance: ${qty(est.driveMiles)} mi one-way`)
+    parts.push(`Total drive distance: ${qty(est.driveMiles)} mi`)
   }
   if (est.dumpLoads > 0) {
     parts.push(`Dump loads: ${qty(est.dumpLoads)}`)
@@ -126,6 +135,14 @@ export function buildEmailBody(job, est, photoCount, company) {
       : `${item.name} — ${qty(item.quantity)} ${item.unitLabel} x ${money(item.rate)}`
     parts.push(line(detail, item.tbd ? 'TBD' : money(item.cost)))
   })
+  est.materialItems.forEach((item) => {
+    parts.push(
+      line(
+        `${item.name} — ${qty(item.quantity)} ${item.unitLabel} x ${money(item.rate)}`,
+        money(item.cost),
+      ),
+    )
+  })
   parts.push(
     line(
       `Labor — ${qty(est.laborHours)} hrs x ${qty(est.crewMembers)} crew x ${money(
@@ -142,7 +159,7 @@ export function buildEmailBody(job, est, photoCount, company) {
   if (est.travelCost > 0) {
     parts.push(
       line(
-        `Travel — ${qty(est.driveMiles)}mi x2 x ${money(est.mileageRate)}/mi`,
+        `Travel — ${qty(est.driveMiles)} mi x ${money(est.mileageRate)}/mi`,
         money(est.travelCost),
       ),
     )

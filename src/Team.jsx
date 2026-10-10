@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { money } from './pricing'
+import { getPlan } from './lib/plans'
+import { getLang, tr } from './lib/i18n'
 import {
   QUOTE_STATUSES,
   createInvite,
@@ -19,7 +21,7 @@ const errText = (err, fallback) => err?.message || fallback
 const fmtDate = (iso) => {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return d.toLocaleDateString(getLang() === 'es' ? 'es-US' : 'en-US', { month: 'short', day: 'numeric' })
 }
 
 // ---------------------------------------------------------------------------
@@ -40,7 +42,7 @@ export function SavedQuotes({ companyId, isOwner, userId, onOpen }) {
       setError('')
       setQuotes(await listQuotes(companyId))
     } catch (err) {
-      setError(errText(err, 'Could not load saved quotes.'))
+      setError(errText(err, tr('Could not load saved quotes.')))
       setQuotes([])
     }
   }, [companyId])
@@ -54,18 +56,18 @@ export function SavedQuotes({ companyId, isOwner, userId, onOpen }) {
     try {
       await setQuoteStatus(q.id, status)
     } catch (err) {
-      setError(errText(err, 'Could not update that quote.'))
+      setError(errText(err, tr('Could not update that quote.')))
       load()
     }
   }
 
   const remove = async (q) => {
-    if (!window.confirm(`Delete the quote for ${q.customerName || 'this customer'}?`)) return
+    if (!window.confirm(tr('Delete the quote for {name}?', { name: q.customerName || tr('this customer') }))) return
     try {
       await deleteQuote(q.id)
       setQuotes((all) => all.filter((x) => x.id !== q.id))
     } catch (err) {
-      setError(errText(err, 'Could not delete that quote.'))
+      setError(errText(err, tr('Could not delete that quote.')))
     }
   }
 
@@ -87,22 +89,22 @@ export function SavedQuotes({ companyId, isOwner, userId, onOpen }) {
   return (
     <section className="card">
       <header className="card-head">
-        <h2>Saved quotes</h2>
-        <p>Every quote your team builds is saved here automatically.</p>
+        <h2>{tr("Saved quotes")}</h2>
+        <p>{tr("Every quote your team builds is saved here automatically.")}</p>
       </header>
 
       {quotes && quotes.length > 0 && (
         <div className="tq-summary">
           <div>
-            <small>Waiting</small>
+            <small>{tr("Waiting")}</small>
             <strong>{money(totals.sent)}</strong>
           </div>
           <div>
-            <small>Won</small>
+            <small>{tr("Won")}</small>
             <strong className="won">{money(totals.won)}</strong>
           </div>
           <div>
-            <small>Lost</small>
+            <small>{tr("Lost")}</small>
             <strong>{money(totals.lost)}</strong>
           </div>
         </div>
@@ -111,7 +113,7 @@ export function SavedQuotes({ companyId, isOwner, userId, onOpen }) {
       <div className="tq-controls">
         <input
           type="text"
-          placeholder="Search customer, address or teammate"
+          placeholder={tr("Search customer, address or teammate")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
@@ -123,21 +125,21 @@ export function SavedQuotes({ companyId, isOwner, userId, onOpen }) {
               className={filter === f ? 'on' : ''}
               onClick={() => setFilter(f)}
             >
-              {f === 'all' ? 'All' : f[0].toUpperCase() + f.slice(1)}
+              {tr(f === 'all' ? 'All' : f[0].toUpperCase() + f.slice(1))}
             </button>
           ))}
         </div>
       </div>
 
       {error && <p className="banner error">{error}</p>}
-      {quotes === null && <p className="tq-empty">Loading…</p>}
+      {quotes === null && <p className="tq-empty">{tr("Loading…")}</p>}
       {quotes && quotes.length === 0 && !error && (
         <p className="tq-empty">
-          No saved quotes yet. Build one on the New quote tab and it shows up here.
+          {tr("No saved quotes yet. Build one on the New quote tab and it shows up here.")}
         </p>
       )}
       {quotes && quotes.length > 0 && shown.length === 0 && (
-        <p className="tq-empty">Nothing matches that.</p>
+        <p className="tq-empty">{tr("Nothing matches that.")}</p>
       )}
 
       <ul className="tq-list">
@@ -145,11 +147,11 @@ export function SavedQuotes({ companyId, isOwner, userId, onOpen }) {
           <li key={q.id} className="tq-item">
             <button type="button" className="tq-main" onClick={() => onOpen(q)}>
               <span className="tq-top">
-                <strong>{q.customerName || 'Unnamed customer'}</strong>
+                <strong>{q.customerName || tr('Unnamed customer')}</strong>
                 <span className="tq-price">{money(q.total)}</span>
               </span>
               <span className="tq-sub">
-                {q.address || 'No address'}
+                {q.address || tr('No address')}
               </span>
               <span className="tq-sub">
                 {fmtDate(q.createdAt)}
@@ -161,17 +163,17 @@ export function SavedQuotes({ companyId, isOwner, userId, onOpen }) {
                 value={q.status}
                 onChange={(e) => changeStatus(q, e.target.value)}
                 className={`tq-status tq-${q.status}`}
-                aria-label="Quote status"
+                aria-label={tr("Quote status")}
               >
                 {QUOTE_STATUSES.map((s) => (
                   <option key={s} value={s}>
-                    {s[0].toUpperCase() + s.slice(1)}
+                    {tr(s[0].toUpperCase() + s.slice(1))}
                   </option>
                 ))}
               </select>
               {(isOwner || q.createdBy === userId) && (
                 <button type="button" className="tq-link danger" onClick={() => remove(q)}>
-                  Delete
+                  {tr("Delete")}
                 </button>
               )}
             </div>
@@ -209,7 +211,7 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
       setMembers(await listMembers(company.id))
       if (isOwner) setInvites(await listInvites(company.id))
     } catch (err) {
-      setError(errText(err, 'Could not load your team.'))
+      setError(errText(err, tr('Could not load your team.')))
       setMembers([])
     }
   }, [company.id, isOwner])
@@ -224,10 +226,10 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
     try {
       await setMyProfile(name.trim(), phone.trim())
       onProfileSaved?.({ displayName: name.trim(), phone: phone.trim() })
-      setNotice('Saved.')
+      setNotice(tr('Saved.'))
       load()
     } catch (err) {
-      setError(errText(err, 'Could not save your details.'))
+      setError(errText(err, tr('Could not save your details.')))
     } finally {
       setSavingProfile(false)
     }
@@ -239,7 +241,7 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
       setCopied(key)
       setTimeout(() => setCopied(''), 1800)
     } catch {
-      window.prompt('Copy this invite link:', text)
+      window.prompt(tr('Copy this invite link:'), text)
     }
   }
 
@@ -247,6 +249,16 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
     e.preventDefault()
     const email = inviteEmail.trim()
     if (!email || inviting) return
+    const plan = getPlan(company.plan)
+    if ((members?.length ?? 0) + invites.length >= plan.estimators) {
+      setError(
+        tr('Your {plan} plan includes {n} estimator logins. Upgrade your plan to add more people.', {
+          plan: tr(plan.name),
+          n: plan.estimators,
+        }),
+      )
+      return
+    }
     setInviting(true)
     setError('')
     try {
@@ -256,7 +268,7 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
       setInviteName('')
       load()
     } catch (err) {
-      setError(errText(err, 'Could not create that invite.'))
+      setError(errText(err, tr('Could not create that invite.')))
     } finally {
       setInviting(false)
     }
@@ -268,17 +280,17 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
       if (freshLink?.email === inv.email) setFreshLink(null)
       load()
     } catch (err) {
-      setError(errText(err, 'Could not cancel that invite.'))
+      setError(errText(err, tr('Could not cancel that invite.')))
     }
   }
 
   const remove = async (m) => {
-    if (!window.confirm(`Remove ${m.displayName || m.email} from ${company.businessName || 'the team'}?`)) return
+    if (!window.confirm(tr('Remove {who} from {team}?', { who: m.displayName || m.email, team: company.businessName || tr('the team') }))) return
     try {
       await removeMember(company.id, m.userId)
       load()
     } catch (err) {
-      setError(errText(err, 'Could not remove that person.'))
+      setError(errText(err, tr('Could not remove that person.')))
     }
   }
 
@@ -286,34 +298,34 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
     <>
       <section className="card">
         <header className="card-head">
-          <h2>Team</h2>
+          <h2>{tr("Team")}</h2>
           <p>
             {isOwner
-              ? 'Invite estimators to quote under your company. They use your prices and see every saved quote.'
-              : `You're on ${company.businessName || 'this company'}'s team. You quote with the company's prices.`}
+              ? tr('Invite estimators to quote under your company. They use your prices and see every saved quote.')
+              : tr("You're on {name}'s team. You quote with the company's prices.", { name: company.businessName || tr('this company') })}
           </p>
         </header>
 
         {error && <p className="banner error">{error}</p>}
-        {members === null && <p className="tq-empty">Loading…</p>}
+        {members === null && <p className="tq-empty">{tr("Loading…")}</p>}
 
         <ul className="team-list">
           {(members ?? []).map((m) => (
             <li key={m.userId} className="team-item">
               <div>
-                <strong>{m.displayName || m.email || 'Teammate'}</strong>
-                {m.userId === userId && <span className="pill you">You</span>}
-                <span className={`pill ${m.role}`}>{m.role === 'owner' ? 'Owner' : 'Estimator'}</span>
+                <strong>{m.displayName || m.email || tr('Teammate')}</strong>
+                {m.userId === userId && <span className="pill you">{tr("You")}</span>}
+                <span className={`pill ${m.role}`}>{m.role === 'owner' ? tr('Owner') : tr('Estimator')}</span>
                 <small>{m.email}</small>
               </div>
               {isOwner && m.role !== 'owner' && (
                 <button type="button" className="tq-link danger" onClick={() => remove(m)}>
-                  Remove
+                  {tr("Remove")}
                 </button>
               )}
               {!isOwner && m.userId === userId && (
                 <button type="button" className="tq-link danger" onClick={() => remove(m)}>
-                  Leave
+                  {tr("Leave")}
                 </button>
               )}
             </li>
@@ -323,15 +335,15 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
 
       <section className="card">
         <header className="card-head">
-          <h2>Your details</h2>
-          <p>Shown as "prepared by" on the quotes you send.</p>
+          <h2>{tr("Your details")}</h2>
+          <p>{tr("Shown as \"prepared by\" on the quotes you send.")}</p>
         </header>
         <label className="field">
-          <span className="label">Your name</span>
+          <span className="label">{tr("Your name")}</span>
           <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Casey Rivera" />
         </label>
         <label className="field">
-          <span className="label">Your phone</span>
+          <span className="label">{tr("Your phone")}</span>
           <input
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
@@ -342,7 +354,7 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
         </label>
         <div className="team-save">
           <button type="button" className="btn primary" onClick={saveProfile} disabled={savingProfile}>
-            {savingProfile ? 'Saving…' : 'Save'}
+            {savingProfile ? tr('Saving…') : tr('Save')}
           </button>
           {notice && <span className="team-notice">{notice}</span>}
         </div>
@@ -351,16 +363,15 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
       {isOwner && (
         <section className="card">
           <header className="card-head">
-            <h2>Invite an estimator</h2>
+            <h2>{tr("Invite an estimator")}</h2>
             <p>
-              They sign up with the email you enter here. You'll get a link to text or email
-              them. It works once and expires in 14 days.
+              {tr("They sign up with the email you enter here. You'll get a link to text or email them. It works once and expires in 14 days.")}
             </p>
           </header>
 
           <form onSubmit={sendInvite}>
             <label className="field">
-              <span className="label">Name (optional)</span>
+              <span className="label">{tr("Name (optional)")}</span>
               <input
                 type="text"
                 value={inviteName}
@@ -370,7 +381,7 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
             </label>
             <label className="field">
               <span className="label">
-                Email<em>required</em>
+                {tr('Email')}<em>{tr("required")}</em>
               </span>
               <input
                 value={inviteEmail}
@@ -383,7 +394,7 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
             </label>
             <div className="team-save">
               <button type="submit" className="btn primary" disabled={inviting || !inviteEmail.trim()}>
-                {inviting ? 'Creating…' : 'Create invite link'}
+                {inviting ? tr('Creating…') : tr('Create invite link')}
               </button>
             </div>
           </form>
@@ -391,25 +402,25 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
           {freshLink && (
             <div className="invite-box">
               <p>
-                Send this link to <strong>{freshLink.email}</strong>:
+                {tr('Send this link to')} <strong>{freshLink.email}</strong>:
               </p>
               <code>{freshLink.url}</code>
               <button type="button" className="btn ghost small" onClick={() => copy(freshLink.url, 'fresh')}>
-                {copied === 'fresh' ? 'Copied' : 'Copy link'}
+                {copied === 'fresh' ? tr('Copied') : tr('Copy link')}
               </button>
             </div>
           )}
 
           {invites.length > 0 && (
             <>
-              <h3 className="team-sub">Waiting to join</h3>
+              <h3 className="team-sub">{tr("Waiting to join")}</h3>
               <ul className="team-list">
                 {invites.map((inv) => (
                   <li key={inv.id} className="team-item">
                     <div>
                       <strong>{inv.displayName || inv.email}</strong>
                       <small>
-                        {inv.email} · expires {fmtDate(inv.expiresAt)}
+                        {inv.email} · {tr('expires')} {fmtDate(inv.expiresAt)}
                       </small>
                     </div>
                     <span className="tq-actions">
@@ -418,10 +429,10 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
                         className="tq-link"
                         onClick={() => copy(inviteLink(inv.token), inv.id)}
                       >
-                        {copied === inv.id ? 'Copied' : 'Copy link'}
+                        {copied === inv.id ? tr('Copied') : tr('Copy link')}
                       </button>
                       <button type="button" className="tq-link danger" onClick={() => revoke(inv)}>
-                        Cancel
+                        {tr("Cancel")}
                       </button>
                     </span>
                   </li>

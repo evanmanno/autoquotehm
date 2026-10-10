@@ -237,3 +237,17 @@ export async function deleteQuote(id) {
   const { error } = await supabase.from('quotes').delete().eq('id', id)
   if (error) throw error
 }
+
+// Quotes created so far this calendar month; the monthly plan limit counts
+// these. (UTC month, the same boundary as the database trigger in migration_08_plans.sql.)
+export async function countQuotesThisMonth(companyId) {
+  const now = new Date()
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+  const { count, error } = await supabase
+    .from('quotes')
+    .select('id', { count: 'exact', head: true })
+    .eq('company_id', companyId)
+    .gte('created_at', start.toISOString())
+  if (error) throw error
+  return count ?? 0
+}

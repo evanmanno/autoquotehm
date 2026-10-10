@@ -25,3 +25,5 @@ dist-ssr
 
 # Logo exploration files delivered via chat, not app source
 Claude outputs/
+
+_to_delete/

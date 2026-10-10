@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { UNIT_LABEL, money, qty, serviceQuantity } from '../pricing'
+import { deliverPdf } from './native'
 
 async function loadImageDataUrl(url) {
   if (!url) return null
@@ -27,13 +28,6 @@ function hexToRgb(hex) {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
 }
 
-// Blend a color toward white (amount 0..1) for soft section/zebra fills.
-const tint = ([r, g, b], amount) => [
-  Math.round(r + (255 - r) * amount),
-  Math.round(g + (255 - g) * amount),
-  Math.round(b + (255 - b) * amount),
-]
-
 const fmtDate = (d) =>
   d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
 
@@ -44,7 +38,7 @@ function estimateNumber(job, date) {
   const mm = String(date.getMonth() + 1).padStart(2, '0')
   const dd = String(date.getDate()).padStart(2, '0')
   const seed = [...(job.customerName || 'quote')].reduce((s, c) => (s * 31 + c.charCodeAt(0)) % 997, 7)
-  return `AQ-${yy}${mm}${dd}-${String(seed).padStart(3, '0')}`
+  return `PQ-${yy}${mm}${dd}-${String(seed).padStart(3, '0')}`
 }
 
 // Turns the internal cost breakdown into customer-facing line items.
@@ -60,9 +54,10 @@ export function buildCustomerLines(est) {
     // hundreds of thousands of square feet at a fraction of a cent.
     if (!item.tbd && item.visits > 1) {
       groups.materials.push({
-        name: `${item.baseName} — ${qty(item.baseQuantity)} ${item.unitLabel ?? ''}${
-          item.depthLabel ? ` (${item.depthLabel} snow)` : ''
-        }`.replace(/\s+\(/, ' ('),
+        name: item.baseName,
+        desc: `${qty(item.baseQuantity)} ${item.unitLabel ?? ''} per visit${
+          item.depthLabel ? `, ${item.depthLabel} snow` : ''
+        }`.replace(/\s+,/, ','),
         qtyText: `${item.visits} visits`,
         quantity: item.visits,
         cost: item.cost,
@@ -70,17 +65,30 @@ export function buildCustomerLines(est) {
       return
     }
     groups.materials.push({
-      name: item.depthLabel ? `${item.baseName} (${item.depthLabel} snow)` : item.baseName ?? item.name,
+      name: item.baseName ?? item.name,
+      desc: item.tbd
+        ? 'To be priced separately'
+        : [item.note, item.depthLabel ? `${item.depthLabel} snow` : ''].filter(Boolean).join(', '),
       qtyText: item.tbd ? '—' : `${qty(item.quantity)} ${item.unitLabel ?? ''}`.trim(),
       quantity: item.quantity,
       cost: item.cost,
       tbd: item.tbd,
     })
   })
+  ;(est.materialItems ?? []).forEach((item) => {
+    groups.materials.push({
+      name: item.name,
+      desc: item.note || 'Material',
+      qtyText: `${qty(item.quantity)} ${item.unitLabel ?? ''}`.trim(),
+      quantity: item.quantity,
+      cost: item.cost,
+    })
+  })
   if (est.laborCost > 0) {
     const hrs = est.laborHours * est.crewMembers
     groups.labor.push({
-      name: `Labor (${qty(est.crewMembers)} crew × ${qty(est.laborHours)} hrs)`,
+      name: 'Labor',
+      desc: `${qty(est.crewMembers)} crew × ${qty(est.laborHours)} hrs`,
       qtyText: `${qty(hrs)} hrs`,
       quantity: hrs,
       cost: est.laborCost,
@@ -89,20 +97,28 @@ export function buildCustomerLines(est) {
   est.equipmentItems.forEach((item) => {
     groups.equipment.push({
       name: item.name,
+      desc: 'Equipment',
       qtyText: `${qty(item.quantity)} day${item.quantity === 1 ? '' : 's'}`,
       quantity: item.quantity,
       cost: item.cost,
     })
   })
   if (est.travelCost > 0) {
-    groups.other.push({ name: 'Travel', qtyText: '1', quantity: 1, cost: est.travelCost })
+    groups.other.push({
+      name: 'Travel',
+      desc: `${qty(est.driveMiles)} miles total`,
+      qtyText: '1',
+      quantity: 1,
+      cost: est.travelCost,
+    })
   }
   if (est.fuelCost > 0) {
-    groups.other.push({ name: 'Equipment fuel', qtyText: '1', quantity: 1, cost: est.fuelCost })
+    groups.other.push({ name: 'Equipment fuel', desc: '', qtyText: '1', quantity: 1, cost: est.fuelCost })
   }
   if (est.disposalCost > 0) {
     groups.other.push({
       name: 'Disposal / dump fees',
+      desc: `${qty(est.dumpLoads)} load${est.dumpLoads === 1 ? '' : 's'}`,
       qtyText: `${qty(est.dumpLoads)} load${est.dumpLoads === 1 ? '' : 's'}`,
       quantity: est.dumpLoads,
       cost: est.disposalCost,
@@ -127,289 +143,276 @@ export function buildCustomerLines(est) {
   return groups
 }
 
-const SAGE = '#5b8f7e'
-const TRADE_TITLES = {
-  landscaping: 'LANDSCAPING',
-  hardscaping: 'HARDSCAPING',
-  snow: 'SNOW',
-}
-
-// "LANDSCAPING QUOTE", "LANDSCAPING & SNOW QUOTE", or just "QUOTE".
-function quoteTitle(company) {
-  const names = (company?.industries ?? []).map((id) => TRADE_TITLES[id]).filter(Boolean)
-  if (names.length === 0 || names.length > 2) return 'QUOTE'
-  return `${names.join(' & ')} QUOTE`
-}
+const DEFAULT_GREEN = '#5c9a17'
 
 // Builds the finished customer-facing quote (jsPDF document, not yet saved).
-// Layout follows the clean "Landscaping Quote" template: company block + logo
-// on top, big spaced title, Bill To / quote details, flat line-item table,
-// subtotal / tax / total, terms, signature line.
+// Layout follows the invoice-style template: logo + company block on top,
+// recipient on the left and a quote summary box on the right, a bordered
+// product / description / qty / unit price / total table, subtotal, tax and
+// total, then the company's own terms and a signature line.
 export async function buildQuotePdfDoc(job, est, company, opts = {}) {
   // Everyone's profile is seeded with the old default green; treat that as
-  // "no brand color chosen" and use the template's sage instead.
+  // "no brand color chosen" and use the template green instead.
   const rawBrand = (company?.brandColor || '').toLowerCase()
-  const brand = hexToRgb(!rawBrand || rawBrand === '#1f6f45' ? SAGE : rawBrand)
+  const brand = hexToRgb(!rawBrand || rawBrand === '#1f6f45' ? DEFAULT_GREEN : rawBrand)
   const [r, g, b] = brand
-  const band = tint(brand, 0.93)
   const logoData = await loadImageDataUrl(company?.logoUrl)
 
   const doc = new jsPDF({ unit: 'pt', format: 'letter' })
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
-  const margin = 48
+  const margin = 44
   const right = pageWidth - margin
   const today = new Date()
   const validUntil = new Date(today.getTime() + 30 * 86400000)
-  const INK = [34, 38, 36]
-  const fmt = (d) =>
-    `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}-${d.getFullYear()}`
+  const INK = [28, 38, 50]
+  const GRAY = [238, 238, 238]
+  const fmt = (d) => d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 
-  // ---- top left: company block ----
-  doc.setTextColor(...INK)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(14)
-  doc.text(company?.businessName || 'Your Company', margin, 66)
-  doc.setFontSize(9)
-  const addr = doc.splitTextToSize(company?.shopAddress || '', 220)
-  let ty = 83
-  addr.forEach((line) => {
-    doc.text(line, margin, ty)
-    ty += 12
-  })
-  const phone = company?.contactPhone || company?.yourPhone
-  const email = company?.contactEmail || company?.yourEmail
-  ;[phone, email].filter(Boolean).forEach((line) => {
-    doc.text(line, margin, ty)
-    ty += 12
-  })
-
-  // ---- top right: logo ----
+  // ---- top: logo (left) + company block ----
+  let textX = margin
   if (logoData) {
     try {
       const props = doc.getImageProperties(logoData)
-      const boxW = 220
-      const boxH = 62
+      const boxW = 150
+      const boxH = 64
       const scale = Math.min(boxW / props.width, boxH / props.height)
       const w = props.width * scale
       const h = props.height * scale
-      doc.addImage(logoData, props.fileType || 'PNG', right - w, 48 + (boxH - h) / 2, w, h)
+      doc.addImage(logoData, props.fileType || 'PNG', margin, 40 + (boxH - h) / 2, w, h)
+      textX = margin + w + 26
     } catch {
       // unsupported image: just skip the logo
     }
   }
-
-  // ---- title ----
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(r, g, b)
-  doc.setFontSize(27)
-  const title = quoteTitle(company)
-  const words = title.split(' ')
-  const lastWord = words.pop() // QUOTE
-  const firstLine = words.join(' ')
-  const CS = 3.2
-  let titleY = 150
-  // jsPDF's right-align ignores charSpace, so right-align by hand.
-  const spaced = (str, yy) => {
-    const w = doc.getTextWidth(str) + CS * (str.length - 1)
-    doc.text(str, right - w, yy, { charSpace: CS })
-  }
-  if (firstLine) {
-    spaced(firstLine, titleY)
-    titleY += 36
-  }
-  spaced(lastWord, titleY)
-
-  // ---- bill to (left) + quote details (right) ----
-  const blockY = Math.max(titleY + 44, 230)
-  doc.setFontSize(8.5)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(r, g, b)
-  doc.text('Bill To', margin, blockY)
   doc.setTextColor(...INK)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(20)
+  const nameLines = doc.splitTextToSize(company?.businessName || 'Your Company', right - textX)
+  let ty = 62
+  nameLines.forEach((line) => {
+    doc.text(line, textX, ty)
+    ty += 22
+  })
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(12.5)
-  doc.text(job.customerName || 'Customer', margin, blockY + 20)
   doc.setFontSize(9)
-  let by = blockY + 36
-  const billLines = [
-    ...doc.splitTextToSize(job.address || '', 230),
-    ...(job.phone ? [job.phone] : []),
-  ]
-  billLines.forEach((line) => {
+  ty -= 6
+  doc.splitTextToSize(company?.shopAddress || '', right - textX).forEach((line) => {
+    doc.text(line, textX, ty)
+    ty += 12
+  })
+  const phone = company?.contactPhone || company?.yourPhone
+  const email = company?.contactEmail || company?.yourEmail
+  const contactLine = [phone, email].filter(Boolean).join('   |   ')
+  if (contactLine) {
+    doc.text(contactLine, textX, ty)
+    ty += 12
+  }
+
+  // ---- recipient (left) + quote summary box (right) ----
+  const topY = Math.max(ty + 26, 150)
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(8.5)
+  doc.setTextColor(...INK)
+  doc.text('RECIPIENT:', margin, topY + 16)
+  doc.setFontSize(14)
+  doc.text(job.customerName || 'Customer', margin, topY + 56)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9.5)
+  let by = topY + 74
+  ;[...doc.splitTextToSize(job.address || '', 250), ...(job.phone ? [job.phone] : [])].forEach((line) => {
     doc.text(line, margin, by)
-    by += 12
+    by += 13
   })
 
+  const boxW = 258
+  const boxX = right - boxW
+  doc.setFillColor(r, g, b)
+  doc.rect(boxX, topY, boxW, 30, 'F')
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  doc.setTextColor(255, 255, 255)
+  doc.text(`Quote #${estimateNumber(job, today).replace(/^PQ-/, '')}`, boxX + 6, topY + 20)
+  const preparedBy = company?.crewMemberName || company?.contactName || ''
   const meta = [
-    ['Quote #', estimateNumber(job, today)],
-    ['Quote date', fmt(today)],
+    ['Issued', fmt(today)],
     ['Valid until', fmt(validUntil)],
+    ['Prepared by', preparedBy || '—'],
   ]
-  meta.forEach(([label, value], i) => {
-    const yy = blockY + 4 + i * 23
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8.5)
-    doc.setTextColor(r, g, b)
-    doc.text(label, right - 118, yy, { align: 'right' })
+  let my = topY + 30
+  meta.forEach(([label, value]) => {
+    doc.setFillColor(...GRAY)
+    doc.rect(boxX, my + 2, boxW, 28, 'F')
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(9)
+    doc.setFontSize(10)
     doc.setTextColor(...INK)
-    doc.text(value, right, yy, { align: 'right' })
+    doc.text(label, boxX + 6, my + 20)
+    doc.text(String(value), boxX + boxW - 6, my + 20, { align: 'right' })
+    my += 30
   })
+  const taxRate = Number(company?.salesTaxRate) > 0 ? Number(company.salesTaxRate) : 0
+  const tax = Math.round(est.quotePrice * taxRate) / 100
+  const total = est.quotePrice + tax
+  doc.setFillColor(r, g, b)
+  doc.rect(boxX, my + 2, boxW, 30, 'F')
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(12)
+  doc.setTextColor(255, 255, 255)
+  doc.text('Total', boxX + 6, my + 22)
+  doc.text(money(total), boxX + boxW - 6, my + 22, { align: 'right' })
+  my += 32
 
-  // ---- line items ----
+  // ---- scope heading + line items ----
+  let y = Math.max(by, my) + 34
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(11.5)
+  doc.setTextColor(...INK)
+  doc.text('Quote for Services', margin, y)
+  y += 10
+
   const lines = Object.values(buildCustomerLines(est)).flat()
   const body = lines.map((l) => [
-    l.tbd ? '—' : l.qtyText.replace(/^1$/, '1'),
     l.name,
+    l.desc || '',
+    l.tbd ? '—' : l.qtyText,
     l.tbd ? '—' : money(l.unitPrice),
     l.tbd ? 'TBD' : money(l.amount),
   ])
-
-  let y = Math.max(blockY + 90, by + 24)
   autoTable(doc, {
     startY: y,
     margin: { left: margin, right: margin, bottom: 70 },
-    head: [['QTY', 'Description', 'Unit Price', 'Amount']],
+    head: [['PRODUCT / SERVICE', 'DESCRIPTION', 'QTY', 'UNIT PRICE', 'TOTAL']],
     body,
-    theme: 'plain',
+    theme: 'grid',
     styles: {
       font: 'helvetica',
       fontSize: 9,
       textColor: INK,
-      cellPadding: { top: 5, bottom: 5, left: 6, right: 6 },
+      lineColor: [190, 190, 190],
+      lineWidth: 0.6,
+      cellPadding: { top: 7, bottom: 7, left: 6, right: 6 },
+      valign: 'middle',
     },
-    headStyles: { fillColor: [r, g, b], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+    headStyles: {
+      fillColor: [r, g, b],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      fontSize: 8.5,
+      halign: 'left',
+      lineColor: [r, g, b],
+    },
     columnStyles: {
-      0: { cellWidth: 78 },
+      0: { cellWidth: 118 },
       1: { cellWidth: 'auto' },
-      2: { halign: 'right', cellWidth: 82 },
-      3: { halign: 'right', cellWidth: 82 },
+      2: { halign: 'right', cellWidth: 62 },
+      3: { halign: 'right', cellWidth: 74 },
+      4: { halign: 'right', cellWidth: 74 },
     },
     didParseCell: (data) => {
-      if (data.section === 'head' && data.column.index >= 2) data.cell.styles.halign = 'right'
+      if (data.section === 'head' && data.column.index >= 2) data.cell.styles.halign = 'center'
     },
-    didDrawPage: () => {},
   })
-  y = doc.lastAutoTable.finalY
+  y = doc.lastAutoTable.finalY + 26
 
-  // thin rule closing the table
-  doc.setDrawColor(r, g, b)
-  doc.setLineWidth(0.8)
-  doc.line(margin, y, right, y)
-
-  // ---- totals ----
-  const taxRate = Number(company?.salesTaxRate) > 0 ? Number(company.salesTaxRate) : 0
-  const tax = Math.round(est.quotePrice * taxRate) / 100
-  const total = est.quotePrice + tax
-  const boxX = right - 232
-  const needed = (taxRate ? 74 : 54) + 24
-  if (y + needed > pageHeight - 60) {
+  // ---- thank-you note (left) + totals (right) ----
+  const totalsW = 232
+  const totalsX = right - totalsW
+  const rowsCount = taxRate ? 3 : 2
+  if (y + rowsCount * 26 + 30 > pageHeight - 70) {
     doc.addPage()
     y = 60
   }
-  const row = (label, value, yy, opts = {}) => {
-    doc.setFont('helvetica', opts.bold ? 'bold' : 'normal')
-    doc.setFontSize(opts.size || 9)
-    doc.setTextColor(...(opts.color || INK))
-    doc.text(label, boxX + 6, yy)
-    doc.text(value, right - 6, yy, { align: 'right' })
-  }
-  const totalsPage = doc.internal.getNumberOfPages()
-  let ty2 = y + 20
-  row('Subtotal', money(est.quotePrice), ty2)
-  ty2 += 20
-  doc.setDrawColor(...[200, 208, 203])
-  doc.setLineWidth(0.5)
-  if (taxRate) {
-    doc.line(boxX, ty2 - 13, right, ty2 - 13)
-    row(`Sales Tax (${taxRate}%)`, money(tax), ty2)
-    ty2 += 20
-  }
-  doc.setFillColor(...band)
-  doc.rect(boxX, ty2 - 14, 232, 24, 'F')
-  doc.setDrawColor(r, g, b)
-  doc.setLineWidth(0.8)
-  doc.line(boxX, ty2 - 14, right, ty2 - 14)
-  doc.line(boxX, ty2 + 10, right, ty2 + 10)
-  row('Total (USD)', money(total), ty2 + 2, { bold: true, color: [r, g, b], size: 9.5 })
-  y = ty2 + 44
+  const noteLines = doc.splitTextToSize(
+    `Thank you for your business. Please contact us with any questions regarding this quote.`,
+    totalsX - margin - 24,
+  )
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9.5)
+  doc.setTextColor(...INK)
+  noteLines.forEach((line, i) => doc.text(line, margin, y + 8 + i * 13))
 
-  // ---- terms & notes ----
-  if (y > pageHeight - 150) {
-    doc.addPage()
-    y = 70
+  let ry = y + 6
+  const totalRow = (label, value, bold) => {
+    doc.setFont('helvetica', bold ? 'bold' : 'normal')
+    doc.setFontSize(10)
+    doc.setTextColor(...(bold ? [r, g, b] : INK))
+    doc.text(label, totalsX + 4, ry)
+    doc.text(value, right - 4, ry, { align: 'right' })
+    doc.setDrawColor(150, 150, 150)
+    doc.setLineWidth(1.2)
+    doc.line(totalsX, ry + 8, right, ry + 8)
+    ry += 26
   }
+  totalRow('Subtotal', money(est.quotePrice))
+  if (taxRate) totalRow(`Sales Tax (${taxRate}%)`, money(tax))
+  totalRow('Total', money(total), true)
+  y = Math.max(ry, y + 8 + noteLines.length * 13) + 18
+
+  // ---- terms & notes (full width) ----
   const flags = []
   if (est.belowMinimum) flags.push(`Priced at the ${money(est.minJobCharge)} minimum job charge.`)
   if (est.hasTbd) {
     const names = est.lineItems.filter((i) => i.tbd).map((i) => i.name).join(' and ')
     flags.push(`Not included: ${names} — to be priced separately.`)
   }
+  const customTerms = (company?.terms || '').trim()
   const terms = [
-    'This quote is valid for 30 days from the date above.',
-    'Final price may change if the scope of work changes after the site visit.',
+    ...(customTerms
+      ? customTerms.split(/\n+/).map((t) => t.trim()).filter(Boolean)
+      : [
+          'This quote is valid for 30 days from the date above.',
+          'Final price may change if the scope of work changes after the site visit.',
+        ]),
     ...flags,
-    ...(company?.terms ? [company.terms] : []),
   ]
-  const leftW = boxX - margin - 24
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.5)
-  doc.setTextColor(r, g, b)
-  doc.text('Terms and Conditions', margin, y)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  doc.setTextColor(...INK)
-  let tyy = y + 16
-  terms.forEach((t) => {
-    doc.splitTextToSize(t, leftW).forEach((line) => {
-      if (tyy > pageHeight - 56) {
-        doc.addPage()
-        tyy = 60
-        doc.setFont('helvetica', 'normal')
-        doc.setFontSize(9)
-        doc.setTextColor(...INK)
-      }
-      doc.text(line, margin, tyy)
-      tyy += 12
-    })
-  })
-  if (job.notes) {
-    tyy += 8
+  const textW = right - margin
+  const writeBlock = (heading, paragraphs) => {
+    if (y > pageHeight - 90) {
+      doc.addPage()
+      y = 60
+    }
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8.5)
+    doc.setFontSize(9.5)
     doc.setTextColor(r, g, b)
-    doc.text('Notes', margin, tyy)
+    doc.text(heading, margin, y)
+    y += 15
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(9)
     doc.setTextColor(...INK)
-    tyy += 16
-    doc.splitTextToSize(job.notes, leftW).forEach((line) => {
-      if (tyy > pageHeight - 56) {
-        doc.addPage()
-        tyy = 60
-        doc.setFont('helvetica', 'normal')
-        doc.setFontSize(9)
-        doc.setTextColor(...INK)
-      }
-      doc.text(line, margin, tyy)
-      tyy += 12
+    paragraphs.forEach((t) => {
+      doc.splitTextToSize(t, textW).forEach((line) => {
+        if (y > pageHeight - 56) {
+          doc.addPage()
+          y = 60
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(9)
+          doc.setTextColor(...INK)
+        }
+        doc.text(line, margin, y)
+        y += 12
+      })
+      y += 3
     })
+    y += 8
   }
+  writeBlock('Terms and Conditions', terms)
+  if (job.notes) writeBlock('Notes', job.notes.split(/\n+/).filter(Boolean))
 
-  // ---- signature, bottom right of the last page ----
-  let sigY = pageHeight - 96
-  if (doc.internal.getNumberOfPages() === totalsPage && ty2 + 40 > sigY) {
+  // ---- signature, bottom of the last page ----
+  let sigY = Math.max(y + 36, pageHeight - 96)
+  if (sigY > pageHeight - 50) {
     doc.addPage()
+    sigY = 120
   }
   doc.setDrawColor(r, g, b)
   doc.setLineWidth(0.8)
   doc.line(right - 214, sigY, right, sigY)
+  doc.line(margin, sigY, margin + 130, sigY)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   doc.setTextColor(r, g, b)
   doc.text('customer signature', right - 107, sigY + 14, { align: 'center' })
+  doc.text('date', margin + 65, sigY + 14, { align: 'center' })
 
   // ---- optional AI concept page ----
   if (opts.conceptUrl) {
@@ -461,5 +464,5 @@ export async function buildQuotePdfDoc(job, est, company, opts = {}) {
 export async function buildQuotePdf(job, est, company, opts = {}) {
   const doc = await buildQuotePdfDoc(job, est, company, opts)
   const safeName = (job.customerName || 'quote').replace(/[^a-z0-9]+/gi, '-').toLowerCase()
-  doc.save(`${safeName}-quote.pdf`)
+  await deliverPdf(doc, `${safeName}-quote.pdf`)
 }

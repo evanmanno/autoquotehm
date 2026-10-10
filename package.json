@@ -11,6 +11,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/camera": "^8.2.5",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/filesystem": "^8.1.4",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/share": "^8.0.3",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.4",
     "@emailjs/browser": "^4.4.1",
     "@supabase/supabase-js": "^2.117.2",
     "jspdf": "^4.2.1",
@@ -19,6 +27,9 @@
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/cli": "^8.5.3",
+    "@capacitor/ios": "^8.5.3",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",

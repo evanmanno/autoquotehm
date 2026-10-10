@@ -12,6 +12,7 @@ import {
   PROFIT_MARGIN,
   TRIP_MINIMUM,
   UNIT_LABEL,
+  EMPLOYEE_WAGE_TYPES,
   categoryOf,
   equipmentById,
   estimate,
@@ -23,12 +24,14 @@ import {
 } from './pricing'
 import { isConfigured, sendQuote } from './email'
 import logoIcon from './assets/logo-icon.png'
+import { haptic, isNative, pickPhotos } from './lib/native'
 import { getInitialSession, onAuthChange, signIn, signOut, signUp } from './lib/auth'
-import { deleteCompany, fetchCompany, saveCompany, uploadLogo } from './lib/companyStore'
+import { deleteCompany, fetchCompany, saveCompany, setCompanyPlan, uploadLogo } from './lib/companyStore'
 import { buildQuotePdf } from './lib/quotePdf'
 import {
   acceptPendingInvite,
   captureInviteFromUrl,
+  countQuotesThisMonth,
   clearPendingInvite,
   fetchMyMember,
   getPendingInvite,
@@ -36,6 +39,10 @@ import {
 } from './lib/teamStore'
 import { SavedQuotes, Team } from './Team'
 import { SettingsHub, SettingsPage } from './Settings'
+import PlanPage from './PlanPage'
+import LangToggle from './LangToggle'
+import { SHOW_PLANS, getPlan } from './lib/plans'
+import { tr, useLang } from './lib/i18n'
 import { ConceptCard } from './Concept'
 import './team.css'
 import './settings.css'
@@ -89,6 +96,8 @@ const emptyJob = {
   equipment: '',
   equipmentSelected: {},
   driveMiles: '',
+  materialQty: {},
+  employeeIds: [],
   fuelCost: '',
   dumpLoads: '',
   notes: '',
@@ -126,15 +135,17 @@ export default function App() {
   const [sendError, setSendError] = useState('')
   const [pdfState, setPdfState] = useState('idle') // idle | generating
   const [view, setView] = useState('new') // new | quotes | settings
-  const [settingsPage, setSettingsPage] = useState(null) // null (the list) | 'team'
+  const [settingsPage, setSettingsPage] = useState(null) // null (the list) | 'team' | 'plan'
   const [editStep, setEditStep] = useState(1)
   const [me, setMe] = useState(null) // this login's row in the company's team
   const [savedQuoteId, setSavedQuoteId] = useState(null)
   const [conceptUrl, setConceptUrl] = useState(null) // AI concept chosen for the PDF
-  const [saveState, setSaveState] = useState('idle') // idle | saving | saved | error
+  const [saveState, setSaveState] = useState('idle') // idle | saving | saved | error | limit
   const [hasInvite] = useState(captureInviteFromUrl)
   const [inviteError, setInviteError] = useState('')
   const [inviteJoined, setInviteJoined] = useState(false)
+  const [monthUsed, setMonthUsed] = useState(null) // quotes created this calendar month
+  useLang() // re-render the whole app when the language changes
   const topRef = useRef(null)
 
   // Photos hold blob URLs, so they are intentionally left out of the draft.
@@ -213,6 +224,21 @@ export default function App() {
     }
   }, [session])
 
+  // How many quotes this company has created so far this month (plan limit).
+  useEffect(() => {
+    if (!company?.id) {
+      setMonthUsed(null)
+      return
+    }
+    let live = true
+    countQuotesThisMonth(company.id)
+      .then((n) => live && setMonthUsed(n))
+      .catch(() => live && setMonthUsed(null))
+    return () => {
+      live = false
+    }
+  }, [company?.id, view, saveState, savedQuoteId])
+
   useEffect(() => {
     topRef.current?.scrollIntoView({ block: 'start' })
   }, [step])
@@ -241,6 +267,14 @@ export default function App() {
       return { ...j, equipmentSelected: current }
     })
 
+  const toggleEmployee = (id) =>
+    setJob((j) => {
+      const ids = j.employeeIds ?? []
+      return { ...j, employeeIds: ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id] }
+    })
+  const staffList = company?.employees ?? []
+  const materialList = company?.customMaterials ?? []
+
   const est = useMemo(() => estimate(job, company ?? emptyCompany), [job, company])
 
   const materials = useMemo(
@@ -262,9 +296,14 @@ export default function App() {
   })).filter((c) => c.items.length > 0)
   const activeTab = serviceTabs.find((t) => t.id === svcTab) ?? serviceTabs[0]
 
+  // Plan limit: a brand-new quote can't start once the month's allowance is used.
+  // Quotes already saved (savedQuoteId set) can still be reopened and finished.
+  const plan = getPlan(company?.plan)
+  const atLimit = Boolean(company) && monthUsed != null && monthUsed >= plan.quotes && !savedQuoteId
+
   const canAdvance =
     step === 0
-      ? job.customerName.trim() !== '' && job.address.trim() !== ''
+      ? job.customerName.trim() !== '' && job.address.trim() !== '' && !atLimit
       : step === 1
         ? job.services.length > 0
         : true
@@ -324,7 +363,7 @@ export default function App() {
       setSaveState('saved')
     } catch (err) {
       console.error('Saving quote failed:', err)
-      setSaveState('error')
+      setSaveState(/quote_limit_reached/.test(err?.message || '') ? 'limit' : 'error')
     }
   }
 
@@ -336,7 +375,7 @@ export default function App() {
 
   const openSavedQuote = (q) => {
     if (!q.job) {
-      alert('This quote was saved before reopening was supported.')
+      alert(tr('This quote was saved before reopening was supported.'))
       return
     }
     setJob({ ...emptyJob, ...q.job })
@@ -354,9 +393,10 @@ export default function App() {
     try {
       await sendQuote(job, est, photos.length, companyForQuote)
       setSendState('sent')
+      haptic('success')
       persistQuote('sent')
     } catch (err) {
-      setSendError(err?.text || err?.message || 'Email failed to send.')
+      setSendError(err?.text || err?.message || tr('Email failed to send.'))
       setSendState('error')
     }
   }
@@ -369,7 +409,7 @@ export default function App() {
     } catch (err) {
       console.error('PDF generation failed:', err)
       setPdfState('idle')
-      alert('Could not build the PDF. Try again.')
+      alert(tr('Could not build the PDF. Try again.'))
     }
   }
 
@@ -414,7 +454,7 @@ export default function App() {
   }
 
   const quickSignOut = () => {
-    if (window.confirm('Sign out of Pricr on this device?')) {
+    if (window.confirm(tr('Sign out of Pricr on this device?'))) {
       signOutNow()
     }
   }
@@ -432,6 +472,11 @@ export default function App() {
     await signOutNow()
   }
 
+  const changePlan = async (planId) => {
+    const saved = await setCompanyPlan(company.id, planId)
+    setCompany((c) => (c ? { ...c, plan: saved } : c))
+  }
+
   if (!authReady || (session && companyLoading)) {
     return (
       <div className="app">
@@ -439,7 +484,7 @@ export default function App() {
           <span className="hero-mark" aria-hidden="true">
             <img src={logoIcon} alt="" />
           </span>
-          <p>Loading...</p>
+          <p>{tr("Loading...")}</p>
         </div>
       </div>
     )
@@ -467,17 +512,16 @@ export default function App() {
         <main className="content">
           <section className="card">
             <header className="card-head">
-              <h2>That invite didn't work</h2>
+              <h2>{tr("That invite didn't work")}</h2>
               <p>{inviteError}</p>
             </header>
             <p className="subgroup-hint">
-              Signed in as {session.user.email}. If this is the wrong account, sign out and
-              use the email your admin invited.
+              {tr('Signed in as {email}. If this is the wrong account, sign out and use the email your admin invited.', { email: session.user.email })}
             </p>
           </section>
           <footer className="footer footer--stacked">
             <button type="button" className="btn primary" onClick={signOutNow}>
-              Sign out
+              {tr("Sign out")}
             </button>
             <button
               type="button"
@@ -487,7 +531,7 @@ export default function App() {
                 setInviteError('')
               }}
             >
-              Set up my own business instead
+              {tr("Set up my own business instead")}
             </button>
           </footer>
         </main>
@@ -502,14 +546,14 @@ export default function App() {
         initial={company ?? emptyCompany}
         onSave={async (profile) => {
           try {
-            const saved = await saveCompany(profile, session.user.id)
+            const saved = await saveCompany({ ...profile, _extras: company?._extras }, session.user.id)
             setCompany(saved)
             setEditingCompany(false)
           } catch (err) {
             console.error('Save failed:', err)
             alert(
               err?.message ||
-                'Could not save your business info. Check your connection and try again.',
+                tr('Could not save your business info. Check your connection and try again.'),
             )
           }
         }}
@@ -554,7 +598,7 @@ export default function App() {
                 onClick={() => i < step && setStep(i)}
                 disabled={i >= step}
               >
-                {label}
+                {tr(label)}
               </button>
             ))}
           </div>
@@ -578,13 +622,16 @@ export default function App() {
             isOwner={isOwner}
             email={session.user.email}
             onEdit={openEditor}
+            plan={plan}
+            used={monthUsed}
+            onOpenPlan={() => setSettingsPage('plan')}
             onOpenTeam={() => setSettingsPage('team')}
             onSignOut={quickSignOut}
             onDeleteAll={deleteAllData}
           />
         )}
         {view === 'settings' && settingsPage === 'team' && (
-          <SettingsPage title={isOwner ? 'Team & invites' : 'Your team'} onBack={() => setSettingsPage(null)}>
+          <SettingsPage title={isOwner ? tr('Team & invites') : tr('Your team')} onBack={() => setSettingsPage(null)}>
             <Team
               company={company}
               isOwner={isOwner}
@@ -594,17 +641,50 @@ export default function App() {
             />
           </SettingsPage>
         )}
+        {view === 'settings' && settingsPage === 'plan' && (
+          <SettingsPage title={tr('Manage plan')} onBack={() => setSettingsPage(null)}>
+            <PlanPage company={company} used={monthUsed} isOwner={isOwner} onChangePlan={changePlan} />
+          </SettingsPage>
+        )}
+        {view === 'new' && atLimit && (
+          <div className="banner warn limit-banner">
+            <p>
+              {tr("You've used all {max} quotes on your {plan} plan this month. Quotes you already started are safe.", {
+                max: plan.quotes,
+                plan: tr(plan.name),
+              })}
+            </p>
+            {isOwner && SHOW_PLANS ? (
+              <button
+                type="button"
+                className="btn primary"
+                onClick={() => {
+                  setView('settings')
+                  setSettingsPage('plan')
+                }}
+              >
+                {tr('Upgrade plan')}
+              </button>
+            ) : (
+              <p>
+                {SHOW_PLANS
+                  ? tr('Ask the account owner to upgrade the plan.')
+                  : tr('Contact Pricr to raise your quote limit.')}
+              </p>
+            )}
+          </div>
+        )}
         {view === 'new' && inviteJoined && (
           <p className="banner warn invite-banner">
-            You joined {company.businessName || 'the team'}. Quotes use the company's prices.
+            {tr("You joined {name}. Quotes use the company's prices.", { name: company.businessName || tr('the team') })}
           </p>
         )}
         {view === 'new' && step === 0 && (
           <Section
-            title="Property Info"
-            hint="Who and where. Everything else builds off this."
+            title={tr("Property Info")}
+            hint={tr("Who and where. Everything else builds off this.")}
           >
-            <Field label="Customer name" required>
+            <Field label={tr("Customer name")} required>
               <input
                 value={job.customerName}
                 onChange={(e) => set('customerName')(e.target.value)}
@@ -612,7 +692,7 @@ export default function App() {
                 autoComplete="name"
               />
             </Field>
-            <Field label="Phone number">
+            <Field label={tr("Phone number")}>
               <input
                 value={job.phone}
                 onChange={(e) => set('phone')(e.target.value)}
@@ -622,11 +702,11 @@ export default function App() {
                 autoComplete="tel"
               />
             </Field>
-            <Field label="Property address" required>
+            <Field label={tr("Property address")} required>
               <textarea
                 value={job.address}
                 onChange={(e) => set('address')(e.target.value)}
-                placeholder="12 Elm St, Springfield, MA"
+                placeholder={tr("12 Elm St, Springfield, MA")}
                 rows={3}
               />
             </Field>
@@ -635,8 +715,8 @@ export default function App() {
 
         {view === 'new' && step === 1 && (
           <Section
-            title="Services Needed"
-            hint="Tap everything this job covers. You can change it later."
+            title={tr("Services Needed")}
+            hint={tr("Tap everything this job covers. You can change it later.")}
           >
             {serviceTabs.length > 1 && (
               <div className="cat-tabs" role="tablist">
@@ -676,7 +756,7 @@ export default function App() {
                       <strong>{service.name}</strong>
                       <small>
                         {service.unit === 'tbd'
-                          ? 'Priced separately — TBD'
+                          ? tr('Priced separately — TBD')
                           : `${money(service.rate)} / ${UNIT_LABEL[service.unit]}${
                               service.note ? ` · ${service.note}` : ''
                             }`}
@@ -687,15 +767,15 @@ export default function App() {
               })}
             </div>
             <p className="counter">
-              {job.services.length} service{job.services.length === 1 ? '' : 's'} selected
+              {tr(job.services.length === 1 ? '{n} service selected' : '{n} services selected', { n: job.services.length })}
             </p>
           </Section>
         )}
 
         {view === 'new' && step === 2 && (
           <>
-            <Section title="Job Details" hint="Measurements drive the material cost.">
-              <Field label="Property square footage">
+            <Section title={tr("Job Details")} hint={tr("Measurements drive the material cost.")}>
+              <Field label={tr("Property square footage")}>
                 <NumInput
                   value={job.squareFootage}
                   onChange={set('squareFootage')}
@@ -706,7 +786,7 @@ export default function App() {
 
               {yardServices.length > 0 && (
                 <div className="subgroup">
-                  <h3>Material needed</h3>
+                  <h3>{tr("Material needed")}</h3>
                   {yardServices.map((service) => (
                     <Field key={service.id} label={service.name}>
                       <NumInput
@@ -722,9 +802,9 @@ export default function App() {
 
               {sqftServices.length > 0 && (
                 <div className="subgroup">
-                  <h3>Area per service</h3>
+                  <h3>{tr("Area per service")}</h3>
                   <p className="subgroup-hint">
-                    Leave blank to use the property square footage above.
+                    {tr("Leave blank to use the property square footage above.")}
                   </p>
                   {sqftServices.map((service) => (
                     <Field key={service.id} label={service.name}>
@@ -745,7 +825,7 @@ export default function App() {
 
               {linearFtServices.length > 0 && (
                 <div className="subgroup">
-                  <h3>Linear footage</h3>
+                  <h3>{tr("Linear footage")}</h3>
                   {linearFtServices.map((service) => (
                     <Field key={service.id} label={service.name}>
                       <NumInput
@@ -761,7 +841,7 @@ export default function App() {
 
               {eachServices.length > 0 && (
                 <div className="subgroup">
-                  <h3>Count</h3>
+                  <h3>{tr("Count")}</h3>
                   {eachServices.map((service) => (
                     <Field key={service.id} label={service.name}>
                       <NumInput
@@ -775,14 +855,30 @@ export default function App() {
                 </div>
               )}
 
+              {materialList.length > 0 && (
+                <div className="subgroup">
+                  <h3>{tr("Materials")}</h3>
+                  <p className="subgroup-hint">{tr("Enter how much of each material this job needs.")}</p>
+                  {materialList.map((m) => (
+                    <Field key={m.id} label={m.name}>
+                      <NumInput
+                        value={job.materialQty?.[m.id] ?? ''}
+                        onChange={setNested('materialQty', m.id)}
+                        placeholder="0"
+                        suffix={UNIT_LABEL[m.unit] ?? 'ea'}
+                      />
+                    </Field>
+                  ))}
+                </div>
+              )}
+
               {hasSnowServices && (
                 <div className="subgroup">
-                  <h3>Snow conditions</h3>
+                  <h3>{tr("Snow conditions")}</h3>
                   <p className="subgroup-hint">
-                    Plowing and shoveling scale with depth; every snow service multiplies by the
-                    number of pushes. Quoting a seasonal contract? Enter the visits you expect.
+                    {tr('Plowing and shoveling scale with depth; every snow service multiplies by the number of pushes. Quoting a seasonal contract? Enter the visits you expect.')}
                   </p>
-                  <Field label="Snowfall depth">
+                  <Field label={tr("Snowfall depth")}>
                     <div className="segmented">
                       {SNOW_DEPTH.map((d) => (
                         <button
@@ -796,7 +892,7 @@ export default function App() {
                       ))}
                     </div>
                   </Field>
-                  <Field label="Pushes / visits">
+                  <Field label={tr("Pushes / visits")}>
                     <NumInput
                       value={job.snowVisits}
                       onChange={set('snowVisits')}
@@ -810,7 +906,7 @@ export default function App() {
 
             <Section title="Crew & Equipment">
               <div className="row">
-                <Field label="Labor hours">
+                <Field label={tr("Labor hours")}>
                   <NumInput
                     value={job.laborHours}
                     onChange={set('laborHours')}
@@ -818,17 +914,51 @@ export default function App() {
                     suffix="hrs"
                   />
                 </Field>
-                <Field label="Crew members">
-                  <NumInput
-                    value={job.crewMembers}
-                    onChange={set('crewMembers')}
-                    placeholder="0"
-                    suffix="ppl"
-                  />
+                <Field label={tr("Crew members")}>
+                  {est.staff.length > 0 ? (
+                    <span className="pr-tbd">{tr('{n} selected below', { n: est.staff.length })}</span>
+                  ) : (
+                    <NumInput
+                      value={job.crewMembers}
+                      onChange={set('crewMembers')}
+                      placeholder="0"
+                      suffix="ppl"
+                    />
+                  )}
                 </Field>
               </div>
 
-              <Field label="Which crew">
+              {staffList.length > 0 && (
+                <div className="subgroup">
+                  <h3>{tr("Who's on this job")}</h3>
+                  <p className="subgroup-hint">
+                    {tr('Pick your employees to cost labor from their actual wages. Leave blank to use the number of crew members and your labor rate.')}
+                  </p>
+                  <div className="service-list">
+                    {staffList.map((emp) => {
+                      const on = (job.employeeIds ?? []).includes(emp.id)
+                      return (
+                        <button
+                          key={emp.id}
+                          type="button"
+                          className={`service ${on ? 'on' : ''}`}
+                          onClick={() => toggleEmployee(emp.id)}
+                          aria-pressed={on}
+                        >
+                          <span className="check" aria-hidden="true">
+                            {on ? '✓' : ''}
+                          </span>
+                          <span className="service-text">
+                            <strong>{emp.name}</strong>
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <Field label={tr("Which crew")}>
                 <div className="segmented">
                   {['Crew 1', 'Crew 2'].map((c) => (
                     <button
@@ -844,7 +974,7 @@ export default function App() {
               </Field>
 
               <div className="subgroup">
-                <h3>Equipment used</h3>
+                <h3>{tr("Equipment used")}</h3>
                 <div className="service-list">
                   {equipmentList.map((item) => {
                     const on = job.equipmentSelected[item.id] != null
@@ -861,7 +991,7 @@ export default function App() {
                         </span>
                         <span className="service-text">
                           <strong>{item.name}</strong>
-                          <small>{money(item.rate)} / day</small>
+                          <small>{money(item.rate)} / {tr('day')}</small>
                         </span>
                       </button>
                     )
@@ -887,7 +1017,7 @@ export default function App() {
               </div>
 
               <div className="row">
-                <Field label="Drive distance (one-way)">
+                <Field label={tr("Total drive distance (miles)")}>
                   <NumInput
                     value={job.driveMiles}
                     onChange={set('driveMiles')}
@@ -895,7 +1025,7 @@ export default function App() {
                     suffix="mi"
                   />
                 </Field>
-                <Field label="Equipment fuel cost">
+                <Field label={tr("Equipment fuel cost")}>
                   <NumInput
                     value={job.fuelCost}
                     onChange={set('fuelCost')}
@@ -905,7 +1035,7 @@ export default function App() {
                 </Field>
               </div>
 
-              <Field label="Dump loads">
+              <Field label={tr("Dump loads")}>
                 <NumInput
                   value={job.dumpLoads}
                   onChange={set('dumpLoads')}
@@ -914,30 +1044,40 @@ export default function App() {
                 />
               </Field>
 
-              <Field label="Other equipment / notes">
+              <Field label={tr("Other equipment / notes")}>
                 <textarea
                   value={job.equipment}
                   onChange={(e) => set('equipment')(e.target.value)}
-                  placeholder="Anything not listed above…"
+                  placeholder={tr("Anything not listed above…")}
                   rows={2}
                 />
               </Field>
 
-              <Field label="Job notes">
+              <Field label={tr("Job notes")}>
                 <textarea
                   value={job.notes}
                   onChange={(e) => set('notes')(e.target.value)}
-                  placeholder="Access, slope, irrigation, anything the office should know…"
+                  placeholder={tr("Access, slope, irrigation, anything the office should know…")}
                   rows={4}
                 />
               </Field>
 
-              <Field label="Site photos">
-                <label className="uploader">
+              <Field label={tr("Site photos")}>
+                <label
+                  className="uploader"
+                  onClick={
+                    isNative()
+                      ? async (e) => {
+                          e.preventDefault()
+                          const files = await pickPhotos()
+                          if (files.length) addPhotos(files)
+                        }
+                      : undefined
+                  }
+                >
                   <input
                     type="file"
                     accept="image/*"
-                    capture="environment"
                     multiple
                     onChange={(e) => {
                       addPhotos(e.target.files)
@@ -948,8 +1088,8 @@ export default function App() {
                     +
                   </span>
                   <span>
-                    Add photos
-                    <small>Camera or library</small>
+                    {tr('Add photos')}
+                    <small>{tr("Camera or library")}</small>
                   </span>
                 </label>
                 {photos.length > 0 && (
@@ -972,7 +1112,7 @@ export default function App() {
             </Section>
 
             <div className="live-total">
-              <span>Running quote</span>
+              <span>{tr("Running quote")}</span>
               <strong>{money(est.quotePrice)}</strong>
             </div>
           </>
@@ -1005,7 +1145,7 @@ export default function App() {
         <footer className="footer">
           {step > 0 && (
             <button type="button" className="btn ghost" onClick={() => setStep(step - 1)}>
-              Back
+              {tr("Back")}
             </button>
           )}
           <button
@@ -1014,12 +1154,12 @@ export default function App() {
             disabled={!canAdvance}
             onClick={() => setStep(step + 1)}
           >
-            {step === STEPS.length - 2 ? 'Review quote' : 'Next'}
+            {step === STEPS.length - 2 ? tr('Review quote') : tr('Next')}
           </button>
         </footer>
       )}
 
-      <nav className="tabbar" aria-label="Sections">
+      <nav className="tabbar" aria-label={tr("Sections")}>
         {[
           ['new', 'New quote', 'M12 5v14M5 12h14'],
           ['quotes', 'Quotes', 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01'],
@@ -1050,7 +1190,7 @@ export default function App() {
             >
               <path d={path} />
             </svg>
-            {label}
+            {tr(label)}
           </button>
         ))}
       </nav>
@@ -1083,7 +1223,7 @@ function Field({ label, required, children }) {
     <label className="field">
       <span className="label">
         {label}
-        {required && <em>required</em>}
+        {required && <em>{tr("required")}</em>}
       </span>
       {children}
     </label>
@@ -1134,15 +1274,19 @@ function Quote({
         <div className="success-mark" aria-hidden="true">
           ✓
         </div>
-        <h2>Sent to {officeName}</h2>
+        <h2>{tr('Sent to {name}', { name: officeName })}</h2>
         <p>
-          {job.customerName || 'This estimate'} — {money(est.quotePrice)} quote was
-          emailed to {officeEmail}.{' '}
-          {company?.contactName ? `${company.contactName} will` : "They'll"} take it from
-          here.
+          {tr('{customer} — {price} quote was emailed to {email}.', {
+            customer: job.customerName || tr('This estimate'),
+            price: money(est.quotePrice),
+            email: officeEmail,
+          })}{' '}
+          {company?.contactName
+            ? tr('{name} will take it from here.', { name: company.contactName })
+            : tr("They'll take it from here.")}
         </p>
         <button type="button" className="btn primary" onClick={onNew}>
-          Start new estimate
+          {tr("Start new estimate")}
         </button>
       </section>
     )
@@ -1151,14 +1295,14 @@ function Quote({
   return (
     <>
       <section className="card quote-head">
-        <span className="eyebrow">Quote summary</span>
+        <span className="eyebrow">{tr("Quote summary")}</span>
         <h2>{job.customerName || 'Unnamed customer'}</h2>
         {job.address && <p className="addr">{job.address}</p>}
         <p className="meta">
           {job.crew}
-          {est.crewMembers ? ` · ${qty(est.crewMembers)} crew` : ''}
+          {est.crewMembers ? ` · ${qty(est.crewMembers)} ${tr('crew')}` : ''}
           {job.phone ? ` · ${job.phone}` : ''}
-          {photoCount ? ` · ${photoCount} photo${photoCount === 1 ? '' : 's'}` : ''}
+          {photoCount ? ` · ${tr(photoCount === 1 ? '{n} photo' : '{n} photos', { n: photoCount })}` : ''}
         </p>
       </section>
 
@@ -1174,8 +1318,8 @@ function Quote({
 
       <section className="card">
         <header className="card-head">
-          <h2>Cost breakdown</h2>
-          <p>What the job costs {businessName} to run.</p>
+          <h2>{tr("Cost breakdown")}</h2>
+          <p>{tr('What the job costs {name} to run.', { name: businessName })}</p>
         </header>
 
         <ul className="breakdown">
@@ -1185,24 +1329,38 @@ function Quote({
                 {item.name}
                 <small>
                   {item.tbd
-                    ? 'Not included in totals'
+                    ? tr('Not included in totals')
                     : `${qty(item.quantity)} ${item.unitLabel} × ${money(item.rate)}`}
                 </small>
               </span>
               <span className={`bd-amt ${item.tbd ? 'tbd' : ''}`}>
-                {item.tbd ? 'TBD' : money(item.cost)}
+                {item.tbd ? tr('TBD') : money(item.cost)}
               </span>
             </li>
           ))}
-          {est.lineItems.length === 0 && (
-            <li className="empty">No services selected.</li>
+          {est.lineItems.length === 0 && est.materialItems.length === 0 && (
+            <li className="empty">{tr("No services selected.")}</li>
           )}
+          {est.materialItems.map((item) => (
+            <li key={item.id}>
+              <span className="bd-name">
+                {item.name}
+                <small>
+                  {qty(item.quantity)} {item.unitLabel} × {money(item.rate)}
+                </small>
+              </span>
+              <span className="bd-amt">{money(item.cost)}</span>
+            </li>
+          ))}
           <li>
             <span className="bd-name">
-              Labor
+              {tr('Labor')}
               <small>
-                {qty(est.laborHours)} hrs × {qty(est.crewMembers)} crew ×{' '}
-                {money(est.laborRate)}/hr
+                {tr('{h} hrs × {c} crew × {r}/hr', {
+                  h: qty(est.laborHours),
+                  c: qty(est.crewMembers),
+                  r: money(est.laborRate),
+                })}
               </small>
             </span>
             <span className="bd-amt">{money(est.laborCost)}</span>
@@ -1212,7 +1370,7 @@ function Quote({
               <span className="bd-name">
                 {item.name}
                 <small>
-                  {qty(item.quantity)} day{item.quantity === 1 ? '' : 's'} × {money(item.rate)}
+                  {tr(item.quantity === 1 ? '{n} day' : '{n} days', { n: qty(item.quantity) })} × {money(item.rate)}
                 </small>
               </span>
               <span className="bd-amt">{money(item.cost)}</span>
@@ -1221,9 +1379,9 @@ function Quote({
           {est.travelCost > 0 && (
             <li>
               <span className="bd-name">
-                Travel
+                {tr('Travel')}
                 <small>
-                  {qty(est.driveMiles)} mi × 2 (round trip) × {money(est.mileageRate)}/mi
+                  {tr('{mi} mi × {r}/mi', { mi: qty(est.driveMiles), r: money(est.mileageRate) })}
                 </small>
               </span>
               <span className="bd-amt">{money(est.travelCost)}</span>
@@ -1231,16 +1389,16 @@ function Quote({
           )}
           {est.fuelCost > 0 && (
             <li>
-              <span className="bd-name">Equipment fuel</span>
+              <span className="bd-name">{tr("Equipment fuel")}</span>
               <span className="bd-amt">{money(est.fuelCost)}</span>
             </li>
           )}
           {est.disposalCost > 0 && (
             <li>
               <span className="bd-name">
-                Disposal
+                {tr('Disposal')}
                 <small>
-                  {qty(est.dumpLoads)} load{est.dumpLoads === 1 ? '' : 's'} × {money(est.dumpFee)}
+                  {tr(est.dumpLoads === 1 ? '{n} load' : '{n} loads', { n: qty(est.dumpLoads) })} × {money(est.dumpFee)}
                 </small>
               </span>
               <span className="bd-amt">{money(est.disposalCost)}</span>
@@ -1250,34 +1408,39 @@ function Quote({
 
         <div className="totals">
           <div className="total-row">
-            <span>Total cost</span>
+            <span>{tr("Total cost")}</span>
             <strong>{money(est.totalCost)}</strong>
           </div>
           <div className="total-row accent">
-            <span>Profit margin ({Math.round(est.profitMargin * 100)}% of quote)</span>
+            <span>{tr('Profit margin ({pct}% of quote)', { pct: Math.round(est.profitMargin * 100) })}</span>
             <strong>{money(est.profitAmount)}</strong>
           </div>
           <div className="total-row final">
-            <span>Customer quote</span>
+            <span>{tr("Customer quote")}</span>
             <strong>{money(est.quotePrice)}</strong>
           </div>
         </div>
 
         {est.belowMinimum && (
           <p className="tbd-note">
-            Raised to the {money(est.minJobCharge)} minimum job charge.
+            {tr('Raised to the {amount} minimum job charge.', { amount: money(est.minJobCharge) })}
           </p>
         )}
 
         {est.hasTbd && (
           <p className="tbd-note">
-            Excludes{' '}
-            {est.lineItems
-              .filter((item) => item.tbd)
-              .map((item) => item.name)
-              .join(' and ')}{' '}
-            — {officeName} prices {est.lineItems.filter((i) => i.tbd).length > 1 ? 'those' : 'that'}{' '}
-            separately.
+            {tr(
+              est.lineItems.filter((i) => i.tbd).length > 1
+                ? 'Excludes {items} — {office} prices those separately.'
+                : 'Excludes {items} — {office} prices that separately.',
+              {
+                items: est.lineItems
+                  .filter((item) => item.tbd)
+                  .map((item) => item.name)
+                  .join(tr(' and ')),
+                office: officeName,
+              },
+            )}
           </p>
         )}
       </section>
@@ -1285,17 +1448,17 @@ function Quote({
       {(job.equipment || job.notes) && (
         <section className="card">
           <header className="card-head">
-            <h2>Site notes</h2>
+            <h2>{tr("Site notes")}</h2>
           </header>
           {job.equipment && (
             <div className="note-block">
-              <h3>Other equipment / notes</h3>
+              <h3>{tr("Other equipment / notes")}</h3>
               <p>{job.equipment}</p>
             </div>
           )}
           {job.notes && (
             <div className="note-block">
-              <h3>Notes</h3>
+              <h3>{tr("Notes")}</h3>
               <p>{job.notes}</p>
             </div>
           )}
@@ -1313,19 +1476,23 @@ function Quote({
       {sendState === 'error' && <p className="banner error">{sendError}</p>}
 
       {saveState === 'saved' && (
-        <p className="saved-note">Saved to your company's quotes</p>
+        <p className="saved-note">{tr("Saved to your company's quotes")}</p>
       )}
       {saveState === 'error' && (
         <p className="banner error">
-          This quote couldn't be saved to your company's list. It will retry when you come
-          back to this screen. You can still send it or download the PDF.
+          {tr("This quote couldn't be saved to your company's list. It will retry when you come back to this screen. You can still send it or download the PDF.")}
+        </p>
+      )}
+      {saveState === 'limit' && (
+        <p className="banner error">
+          {tr("This quote wasn't saved because you've used every quote on your plan this month. You can still send it or download the PDF.")}
         </p>
       )}
 
       <footer className="footer footer--stacked">
         <div className="footer-row">
           <button type="button" className="btn ghost" onClick={onBack}>
-            Edit
+            {tr("Edit")}
           </button>
           <button
             type="button"
@@ -1333,7 +1500,7 @@ function Quote({
             onClick={onDownloadPdf}
             disabled={pdfState === 'generating'}
           >
-            {pdfState === 'generating' ? 'Building PDF…' : 'Download PDF'}
+            {pdfState === 'generating' ? tr('Building PDF…') : tr('Download PDF')}
           </button>
         </div>
         <button
@@ -1343,12 +1510,12 @@ function Quote({
           disabled={sendState === 'sending'}
         >
           {sendState === 'sending'
-            ? 'Sending…'
+            ? tr('Sending…')
             : sendState === 'error'
-              ? 'Try again'
+              ? tr('Try again')
               : company?.contactName
-                ? `Send to ${company.contactName}`
-                : 'Send quote'}
+                ? tr('Send to {name}', { name: company.contactName })
+                : tr('Send quote')}
         </button>
       </footer>
     </>
@@ -1364,7 +1531,7 @@ function Quote({
 // of the settings tabs freely, since there's no funnel to protect there.
 // ---------------------------------------------------------------------------
 
-const FORM_STEPS = ['Sign In', 'Business', 'Services', 'Pricing', 'Equipment', 'Rates', 'Margins']
+const FORM_STEPS = ['Sign In', 'Business', 'Services', 'Pricing', 'Materials', 'Equipment', 'Rates', 'Terms']
 
 function Login({ invited }) {
   const [mode, setMode] = useState(invited ? 'signup' : 'signin') // signin | signup
@@ -1389,7 +1556,7 @@ function Login({ invited }) {
         await signIn(email.trim(), password)
       }
     } catch (err) {
-      setError(err?.message || 'Something went wrong. Try again.')
+      setError(err?.message || tr('Something went wrong. Try again.'))
     } finally {
       setBusy(false)
     }
@@ -1406,6 +1573,7 @@ function Login({ invited }) {
               </span>
               <span className="brand-text">Pricr</span>
             </div>
+          <LangToggle />
           </div>
         </header>
         <main className="content">
@@ -1413,10 +1581,9 @@ function Login({ invited }) {
             <span className="hero-mark" aria-hidden="true">
               <img src={logoIcon} alt="" />
             </span>
-            <h1>Check your email</h1>
+            <h1>{tr("Check your email")}</h1>
             <p>
-              We sent a confirmation link to {email}. Click it, then come back here and
-              sign in.
+              {tr('We sent a confirmation link to {email}. Click it, then come back here and sign in.', { email })}
             </p>
             <button
               type="button"
@@ -1426,7 +1593,7 @@ function Login({ invited }) {
                 setMode('signin')
               }}
             >
-              Back to sign in
+              {tr("Back to sign in")}
             </button>
           </div>
         </main>
@@ -1444,6 +1611,7 @@ function Login({ invited }) {
             </span>
             <span className="brand-text">Pricr</span>
           </div>
+          <LangToggle />
         </div>
       </header>
       <main className="content">
@@ -1451,20 +1619,19 @@ function Login({ invited }) {
           <span className="hero-mark" aria-hidden="true">
             <img src={logoIcon} alt="" />
           </span>
-          <h1>{mode === 'signup' ? 'Create your account' : 'Welcome back'}</h1>
+          <h1>{mode === 'signup' ? tr('Create your account') : tr('Welcome back')}</h1>
           {invited && (
             <p className="banner warn invite-banner">
-              You've been invited to join a team. Create your account (or sign in) with the
-              email address you were invited at.
+              {tr("You've been invited to join a team. Create your account (or sign in) with the email address you were invited at.")}
             </p>
           )}
           <p>
             {mode === 'signup'
-              ? "One login for your whole business \u2014 use it on any device."
-              : 'Sign in to your Pricr account.'}
+              ? tr('One login for your whole business — use it on any device.')
+              : tr('Sign in to your Pricr account.')}
           </p>
           <form className="auth-form" onSubmit={submit}>
-            <Field label="Email" required>
+            <Field label={tr("Email")} required>
               <input
                 type="email"
                 required
@@ -1474,7 +1641,7 @@ function Login({ invited }) {
                 placeholder="you@yourbusiness.com"
               />
             </Field>
-            <Field label="Password" required>
+            <Field label={tr("Password")} required>
               <input
                 type="password"
                 required
@@ -1482,12 +1649,12 @@ function Login({ invited }) {
                 autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={mode === 'signup' ? 'At least 6 characters' : ''}
+                placeholder={mode === 'signup' ? tr('At least 6 characters') : ''}
               />
             </Field>
             {error && <p className="auth-error">{error}</p>}
             <button type="submit" className="btn primary auth-submit" disabled={busy}>
-              {busy ? 'Please wait...' : mode === 'signup' ? 'Create account' : 'Sign in'}
+              {busy ? tr('Please wait...') : mode === 'signup' ? tr('Create account') : tr('Sign in')}
             </button>
           </form>
           <button
@@ -1499,8 +1666,8 @@ function Login({ invited }) {
             }}
           >
             {mode === 'signup'
-              ? 'Already have an account? Sign in'
-              : "New here? Create an account"}
+              ? tr('Already have an account? Sign in')
+              : tr('New here? Create an account')}
           </button>
         </div>
       </main>
@@ -1544,6 +1711,9 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
     marginPct: String(Math.round((initial.defaultMargin ?? PROFIT_MARGIN) * 100)),
     materials: (initial.materials ?? []).map((m) => ({ ...m, rate: String(m.rate ?? '') })),
     equipment: (initial.equipment ?? []).map((e) => ({ ...e, rate: String(e.rate ?? '') })),
+    customMaterials: (initial.customMaterials ?? []).map((m) => ({ ...m, cost: String(m.cost ?? '') })),
+    employees: (initial.employees ?? []).map((e) => ({ ...e, wage: String(e.wage ?? '') })),
+    terms: initial.terms ?? '',
     logoUrl: initial.logoUrl ?? '',
     brandColor: initial.brandColor || '#1f6f45',
     industries:
@@ -1680,6 +1850,38 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
   const removeEquipment = (index) =>
     setForm((f) => ({ ...f, equipment: f.equipment.filter((_, i) => i !== index) }))
 
+  const addCustomMaterial = () => {
+    const id = makeId()
+    setFocusId(id)
+    setForm((f) => ({
+      ...f,
+      customMaterials: [...f.customMaterials, { id, name: '', unit: 'each', cost: '', note: '' }],
+    }))
+  }
+  const updateCustomMaterial = (index, patch) =>
+    setForm((f) => ({
+      ...f,
+      customMaterials: f.customMaterials.map((m, i) => (i === index ? { ...m, ...patch } : m)),
+    }))
+  const removeCustomMaterial = (index) =>
+    setForm((f) => ({ ...f, customMaterials: f.customMaterials.filter((_, i) => i !== index) }))
+
+  const addEmployee = () => {
+    const id = makeId()
+    setFocusId(id)
+    setForm((f) => ({
+      ...f,
+      employees: [...f.employees, { id, name: '', wageType: 'hourly', wage: '' }],
+    }))
+  }
+  const updateEmployee = (index, patch) =>
+    setForm((f) => ({
+      ...f,
+      employees: f.employees.map((e, i) => (i === index ? { ...e, ...patch } : e)),
+    }))
+  const removeEmployee = (index) =>
+    setForm((f) => ({ ...f, employees: f.employees.filter((_, i) => i !== index) }))
+
   const canSave = form.businessName.trim() !== '' && form.crewMemberName.trim() !== ''
 
   const save = async () => {
@@ -1723,6 +1925,24 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
         equipment: form.equipment
           .filter((e) => e.name.trim() !== '')
           .map((e) => ({ id: e.id, name: e.name.trim(), rate: num(e.rate) || 0 })),
+        customMaterials: form.customMaterials
+          .filter((m) => m.name.trim() !== '')
+          .map((m) => ({
+            id: m.id,
+            name: m.name.trim(),
+            unit: m.unit,
+            cost: num(m.cost) || 0,
+            note: m.note?.trim() || undefined,
+          })),
+        employees: form.employees
+          .filter((e) => e.name.trim() !== '')
+          .map((e) => ({
+            id: e.id,
+            name: e.name.trim(),
+            wageType: e.wageType || 'hourly',
+            wage: num(e.wage) || 0,
+          })),
+        terms: form.terms.trim(),
         logoUrl: form.logoUrl || '',
         brandColor: form.brandColor || '#1f6f45',
       })
@@ -1762,16 +1982,16 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
 
   const primaryLabel =
     obStep === 0
-      ? 'Get started'
+      ? tr('Get started')
       : isLast
         ? saving
-          ? 'Saving...'
+          ? tr('Saving...')
           : onCancel
-            ? 'Save changes'
-            : 'Start quoting'
-        : 'Next'
+            ? tr('Save changes')
+            : tr('Start quoting')
+        : tr('Next')
 
-  const backLabel = obStep === 1 && onCancel ? 'Cancel' : 'Back'
+  const backLabel = obStep === 1 && onCancel ? tr('Cancel') : tr('Back')
 
   return (
     <div className="app">
@@ -1788,7 +2008,7 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
           </div>
           {onSignOut && (
             <button type="button" className="topbar-reset" onClick={onSignOut}>
-              Sign Out
+              {tr("Sign Out")}
             </button>
           )}
         </div>
@@ -1801,7 +2021,7 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                 style={{ width: `${((obStep - 1) / (FORM_STEPS.length - 1)) * 100}%` }}
               />
             </div>
-            <div className="steps">
+            <div className="steps steps-scroll">
               {FORM_STEPS.map((label, i) => {
                 const target = i + 1
                 const clickable = onCancel || target < obStep
@@ -1814,8 +2034,13 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                     }`}
                     onClick={() => clickable && setObStep(target)}
                     disabled={!clickable}
+                    ref={(el) => {
+                      if (el && target === obStep) {
+                        el.scrollIntoView({ inline: 'center', block: 'nearest' })
+                      }
+                    }}
                   >
-                    {label}
+                    {tr(label)}
                   </button>
                 )
               })}
@@ -1830,10 +2055,9 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
             <span className="hero-mark" aria-hidden="true">
               <img src={logoIcon} alt="" />
             </span>
-            <h1>Welcome to Pricr</h1>
+            <h1>{tr("Welcome to Pricr")}</h1>
             <p>
-              Turn a site walk into an accurate, on-brand quote in minutes — right from
-              your phone.
+              {tr('Turn a site walk into an accurate, on-brand quote in minutes — right from your phone.')}
             </p>
             <ul className="hero-features">
               <li className="hero-feature">
@@ -1841,37 +2065,36 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                   ✓
                 </span>
                 <span>
-                  Set your own materials, equipment and labor rates once — reuse them on
-                  every job.
+                  {tr('Set your own materials, equipment and labor rates once — reuse them on every job.')}
                 </span>
               </li>
               <li className="hero-feature">
                 <span className="check" aria-hidden="true">
                   ✓
                 </span>
-                <span>Quotes price themselves as your crew fills in the job on site.</span>
+                <span>{tr("Quotes price themselves as your crew fills in the job on site.")}</span>
               </li>
               <li className="hero-feature">
                 <span className="check" aria-hidden="true">
                   ✓
                 </span>
-                <span>Send a finished quote straight to your office with one tap.</span>
+                <span>{tr("Send a finished quote straight to your office with one tap.")}</span>
               </li>
             </ul>
           </div>
         )}
 
         {obStep === 1 && (
-          <Section title="Sign In" hint="Who's using Pricr on this device.">
-            <Field label="Your name" required>
+          <Section title={tr("Sign In")} hint={tr("Who's using Pricr on this device.")}>
+            <Field label={tr("Your name")} required>
               <input
                 value={form.crewMemberName}
                 onChange={(e) => setField('crewMemberName')(e.target.value)}
-                placeholder="Whoever's on-site today"
+                placeholder={tr("Whoever's on-site today")}
               />
             </Field>
             <>
-              <Field label="Your email">
+              <Field label={tr("Your email")}>
                 <input
                   value={form.yourEmail}
                   onChange={(e) => setField('yourEmail')(e.target.value)}
@@ -1880,7 +2103,7 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                   inputMode="email"
                 />
               </Field>
-              <Field label="Your phone">
+              <Field label={tr("Your phone")}>
                 <input
                   value={form.yourPhone}
                   onChange={(e) => setField('yourPhone')(e.target.value)}
@@ -1896,8 +2119,8 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
         {obStep === 2 && (
           <>
             <Section
-              title="What you do"
-              hint="Pick your trades. We add starter services and equipment you can edit later."
+              title={tr("What you do")}
+              hint={tr("Pick your trades. We add starter services and equipment you can edit later.")}
             >
               <div className="chip-grid">
                 {INDUSTRIES.map((ind) => {
@@ -1920,15 +2143,15 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
               </div>
             </Section>
 
-            <Section title="Business & branding" hint="Shown at the top of every quote you send.">
-              <Field label="Business name" required>
+            <Section title={tr("Business & branding")} hint={tr("Shown at the top of every quote you send.")}>
+              <Field label={tr("Business name")} required>
                 <input
                   value={form.businessName}
                   onChange={(e) => setField('businessName')(e.target.value)}
-                  placeholder="Riverside Landscaping"
+                  placeholder={tr("Riverside Landscaping")}
                 />
               </Field>
-              <Field label="Business address">
+              <Field label={tr("Business address")}>
                 <input
                   value={form.shopAddress}
                   onChange={(e) => setField('shopAddress')(e.target.value)}
@@ -1937,11 +2160,11 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
               </Field>
               <div className="brand-row">
                 <div className="field">
-                  <span className="label">Logo</span>
+                  <span className="label">{tr("Logo")}</span>
                   <div className="logo-row">
                     {form.logoUrl && <img src={form.logoUrl} alt="" className="logo-preview" />}
                     <label className="btn ghost logo-upload-btn">
-                      {logoUploading ? 'Uploading...' : form.logoUrl ? 'Change' : 'Upload'}
+                      {logoUploading ? tr('Uploading...') : form.logoUrl ? tr('Change') : tr('Upload')}
                       <input
                         type="file"
                         accept="image/png,image/jpeg,image/webp"
@@ -1957,7 +2180,7 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                   </div>
                 </div>
                 <label className="field">
-                  <span className="label">Brand color</span>
+                  <span className="label">{tr("Brand color")}</span>
                   <span className="color-chip">
                     <input
                       type="color"
@@ -1972,8 +2195,8 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
               {logoError && <p className="auth-error">{logoError}</p>}
             </Section>
 
-            <Section title="Send quotes to" hint="Who gets each completed quote by email.">
-              <Field label="Contact email" required>
+            <Section title={tr("Send quotes to")} hint={tr("Who gets each completed quote by email.")}>
+              <Field label={tr("Contact email")} required>
                 <input
                   value={form.contactEmail}
                   onChange={(e) => setField('contactEmail')(e.target.value)}
@@ -1983,14 +2206,14 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                 />
               </Field>
               <div className="row">
-                <Field label="Contact name">
+                <Field label={tr("Contact name")}>
                   <input
                     value={form.contactName}
                     onChange={(e) => setField('contactName')(e.target.value)}
-                    placeholder="Alex Rivera"
+                    placeholder={tr("Alex Rivera")}
                   />
                 </Field>
-                <Field label="Contact phone">
+                <Field label={tr("Contact phone")}>
                   <input
                     value={form.contactPhone}
                     onChange={(e) => setField('contactPhone')(e.target.value)}
@@ -2006,8 +2229,8 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
 
         {obStep === 3 && (
           <Section
-            title="Services you offer"
-            hint="Type every service your company provides. They show up as tabs when you build a quote. Set what you charge for each one under Pricing."
+            title={tr("Services you offer")}
+            hint={tr("Type every service your company provides. They show up as tabs when you build a quote. Set what you charge for each one under Pricing.")}
           >
             <form
               className="svc-add"
@@ -2020,17 +2243,17 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                 value={newService.name}
                 onChange={(e) => setNewService((s) => ({ ...s, name: e.target.value }))}
                 type="text"
-                placeholder="e.g. Brush clearing"
-                aria-label="New service name"
+                placeholder={tr("e.g. Brush clearing")}
+                aria-label={tr("New service name")}
               />
               <button type="submit" className="btn primary svc-add-btn" disabled={!newService.name.trim()}>
-                Add
+                {tr("Add")}
               </button>
               <select
                 className="unit-select"
                 value={newService.category}
                 onChange={(e) => setNewService((s) => ({ ...s, category: e.target.value }))}
-                aria-label="Which tab"
+                aria-label={tr("Which tab")}
               >
                 {CATEGORIES.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -2057,8 +2280,8 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                           type="text"
                           value={m.name}
                           onChange={(e) => updateMaterial(index, { name: e.target.value })}
-                          placeholder="Service name"
-                          aria-label="Service name"
+                          placeholder={tr("Service name")}
+                          aria-label={tr("Service name")}
                         />
                         <select
                           className="unit-select svc-move"
@@ -2087,16 +2310,15 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
               )
             })}
             <p className="subgroup-hint">
-              A service with no price yet shows as "Priced separately — TBD" on a quote until
-              you set a rate under Pricing.
+              {tr('A service with no price yet shows as "Priced separately — TBD" on a quote until you set a rate under Pricing.')}
             </p>
           </Section>
         )}
 
         {obStep === 4 && (
           <Section
-            title="Materials & Pricing"
-            hint="What you charge for each service. Pick the unit, set the rate, and add a note if it helps."
+            title={tr("Service pricing")}
+            hint={tr("What you charge for each service. Pick the unit, set the rate, and add a note if it helps.")}
           >
             {CATEGORIES.map((cat) => {
               const rows = form.materials
@@ -2117,8 +2339,8 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                           value={m.name}
                           autoFocus={m.id === focusId}
                           onChange={(e) => updateMaterial(i, { name: e.target.value })}
-                          placeholder="Service or material name"
-                          aria-label="Name"
+                          placeholder={tr("Service or material name")}
+                          aria-label={tr("Name")}
                         />
                         <button
                           type="button"
@@ -2135,11 +2357,11 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                             onChange={(e) => updateMaterial(i, { unit: e.target.value })}
                             aria-label={`Unit for ${m.name || 'item'}`}
                           >
-                            <option value="yard">Cubic yards</option>
-                            <option value="sqft">Square feet</option>
-                            <option value="each">Each</option>
-                            <option value="linear-ft">Linear feet</option>
-                            <option value="tbd">TBD (priced separately)</option>
+                            <option value="yard">{tr("Cubic yards")}</option>
+                            <option value="sqft">{tr("Square feet")}</option>
+                            <option value="each">{tr("Each")}</option>
+                            <option value="linear-ft">{tr("Linear feet")}</option>
+                            <option value="tbd">{tr("TBD (priced separately)")}</option>
                           </select>
                           {m.unit !== 'tbd' ? (
                             <NumInput
@@ -2149,7 +2371,7 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                               suffix={`$/${UNIT_LABEL[m.unit]}`}
                             />
                           ) : (
-                            <span className="pr-tbd">Priced on each quote</span>
+                            <span className="pr-tbd">{tr("Priced on each quote")}</span>
                           )}
                         </div>
                         <input
@@ -2157,8 +2379,8 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                           className="pr-note"
                           value={m.note ?? ''}
                           onChange={(e) => updateMaterial(i, { note: e.target.value })}
-                          placeholder="Add a note (optional)"
-                          aria-label="Note"
+                          placeholder={tr("Add a note (optional)")}
+                          aria-label={tr("Note")}
                         />
                       </div>
                     ))}
@@ -2181,7 +2403,76 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
         )}
 
         {obStep === 5 && (
-          <Section title="Equipment" hint="Day-rate gear the crew uses on jobs.">
+          <Section
+            title={tr("Materials")}
+            hint={tr("Your own materials and what each one costs you, like the different stones you install. Pick them on a quote and enter how much the job needs.")}
+          >
+            <div className="edit-list">
+              {form.customMaterials.map((m, i) => (
+                <div className="price-row" key={m.id}>
+                  <input
+                    type="text"
+                    className="pr-name"
+                    value={m.name}
+                    autoFocus={m.id === focusId}
+                    onChange={(ev) => updateCustomMaterial(i, { name: ev.target.value })}
+                    placeholder={tr("Material name, e.g. Bluestone")}
+                    aria-label={tr("Name")}
+                  />
+                  <button
+                    type="button"
+                    className="edit-remove"
+                    onClick={() => removeCustomMaterial(i)}
+                    aria-label={`Remove ${m.name || 'material'}`}
+                  >
+                    <TrashIcon />
+                  </button>
+                  <div className="pr-controls">
+                    <select
+                      className="unit-select"
+                      value={m.unit}
+                      onChange={(ev) => updateCustomMaterial(i, { unit: ev.target.value })}
+                      aria-label={`Unit for ${m.name || 'material'}`}
+                    >
+                      <option value="yard">{tr("Cubic yards")}</option>
+                      <option value="ton">{tr("Tons")}</option>
+                      <option value="sqft">{tr("Square feet")}</option>
+                      <option value="linear-ft">{tr("Linear feet")}</option>
+                      <option value="pallet">{tr("Pallets")}</option>
+                      <option value="bag">{tr("Bags")}</option>
+                      <option value="each">{tr("Each")}</option>
+                    </select>
+                    <NumInput
+                      value={m.cost}
+                      onChange={(v) => updateCustomMaterial(i, { cost: v })}
+                      placeholder="0"
+                      suffix={`$/${UNIT_LABEL[m.unit] ?? 'ea'}`}
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    className="pr-note"
+                    value={m.note ?? ''}
+                    onChange={(ev) => updateCustomMaterial(i, { note: ev.target.value })}
+                    placeholder={tr("Add a note (optional)")}
+                    aria-label={tr("Note")}
+                  />
+                </div>
+              ))}
+            </div>
+            {form.customMaterials.length === 0 && (
+              <p className="subgroup-hint">
+                {tr("No materials yet. Add the materials you buy and what each one costs.")}
+              </p>
+            )}
+            <button type="button" className="add-row" onClick={addCustomMaterial}>
+              {tr("+ Add material")}
+            </button>
+          </Section>
+        )}
+
+        {obStep === 6 && (
+          <Section title={tr("Equipment")} hint={tr("Day-rate gear the crew uses on jobs.")}>
             <div className="edit-list">
               {form.equipment.map((e, i) => (
                 <div className="price-row" key={e.id}>
@@ -2191,8 +2482,8 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                     value={e.name}
                     autoFocus={e.id === focusId}
                     onChange={(ev) => updateEquipment(i, { name: ev.target.value })}
-                    placeholder="Equipment name"
-                    aria-label="Name"
+                    placeholder={tr("Equipment name")}
+                    aria-label={tr("Name")}
                   />
                   <button
                     type="button"
@@ -2219,13 +2510,14 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
           </Section>
         )}
 
-        {obStep === 6 && (
-          <Section title="Labor, travel & disposal" hint="What you charge for time, driving and dump runs.">
+        {obStep === 7 && (
+          <>
+          <Section title={tr("Labor, travel & disposal")} hint={tr("What you charge for time, driving and dump runs.")}>
             <div className="set-rows">
               <div className="set-row">
                 <div className="set-text">
-                  <strong>Labor rate</strong>
-                  <small>Per hour, per crew member</small>
+                  <strong>{tr("Labor rate")}</strong>
+                  <small>{tr("Per hour, per crew member")}</small>
                 </div>
                 <NumInput
                   value={form.laborRate}
@@ -2236,8 +2528,8 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
               </div>
               <div className="set-row">
                 <div className="set-text">
-                  <strong>Mileage rate</strong>
-                  <small>Round trip to the job</small>
+                  <strong>{tr("Mileage rate")}</strong>
+                  <small>{tr("Per mile driven")}</small>
                 </div>
                 <NumInput
                   value={form.mileageRate}
@@ -2248,8 +2540,8 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
               </div>
               <div className="set-row">
                 <div className="set-text">
-                  <strong>Dump fee</strong>
-                  <small>Transfer station, per load</small>
+                  <strong>{tr("Dump fee")}</strong>
+                  <small>{tr("Transfer station, per load")}</small>
                 </div>
                 <NumInput
                   value={form.dumpFee}
@@ -2260,14 +2552,12 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
               </div>
             </div>
           </Section>
-        )}
 
-        {obStep === 7 && (
-          <Section title="Margins, minimums & tax" hint="How your prices are built from your costs.">
+          <Section title={tr("Margins, minimums & tax")} hint={tr("How your prices are built from your costs.")}>
             <div className="margin-card">
               <div className="set-text">
-                <strong>Target margin</strong>
-                <small>Profit built into every quote</small>
+                <strong>{tr("Target margin")}</strong>
+                <small>{tr("Profit built into every quote")}</small>
               </div>
               <div className="margin-row">
                 <input
@@ -2277,7 +2567,7 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                   step="1"
                   value={form.marginPct}
                   onChange={(e) => setField('marginPct')(e.target.value)}
-                  aria-label="Target margin"
+                  aria-label={tr("Target margin")}
                 />
                 <span className="margin-value">{form.marginPct}%</span>
               </div>
@@ -2285,8 +2575,8 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
             <div className="set-rows">
               <div className="set-row">
                 <div className="set-text">
-                  <strong>Minimum job charge</strong>
-                  <small>Smallest quote you'll send</small>
+                  <strong>{tr("Minimum job charge")}</strong>
+                  <small>{tr("Smallest quote you'll send")}</small>
                 </div>
                 <NumInput
                   value={form.minJobCharge}
@@ -2297,8 +2587,8 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
               </div>
               <div className="set-row">
                 <div className="set-text">
-                  <strong>Trip minimum</strong>
-                  <small>Saved for reference, not applied to quotes yet</small>
+                  <strong>{tr("Trip minimum")}</strong>
+                  <small>{tr("Saved for reference, not applied to quotes yet")}</small>
                 </div>
                 <NumInput
                   value={form.tripMinimum}
@@ -2309,8 +2599,8 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
               </div>
               <div className="set-row">
                 <div className="set-text">
-                  <strong>Sales tax</strong>
-                  <small>Optional. Shows as its own line on the PDF</small>
+                  <strong>{tr("Sales tax")}</strong>
+                  <small>{tr("Optional. Shows as its own line on the PDF")}</small>
                 </div>
                 <NumInput
                   value={form.salesTaxPct}
@@ -2321,6 +2611,90 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
               </div>
             </div>
 
+          </Section>
+
+          <Section
+            title={tr("Employees")}
+            hint={tr("Add each person and what you pay them. Daily is figured on 8 hours, weekly on 40 and salary on 2,080 hours a year. Pick them on a quote to cost labor from their actual wages.")}
+          >
+            <div className="edit-list">
+              {form.employees.map((emp, i) => (
+                <div className="price-row" key={emp.id}>
+                  <input
+                    type="text"
+                    className="pr-name"
+                    value={emp.name}
+                    autoFocus={emp.id === focusId}
+                    onChange={(ev) => updateEmployee(i, { name: ev.target.value })}
+                    placeholder={tr("Employee name")}
+                    aria-label={tr("Name")}
+                  />
+                  <button
+                    type="button"
+                    className="edit-remove"
+                    onClick={() => removeEmployee(i)}
+                    aria-label={`Remove ${emp.name || 'employee'}`}
+                  >
+                    <TrashIcon />
+                  </button>
+                  <div className="pr-controls">
+                    <select
+                      className="unit-select"
+                      value={emp.wageType || 'hourly'}
+                      onChange={(ev) => updateEmployee(i, { wageType: ev.target.value })}
+                      aria-label={`Pay type for ${emp.name || 'employee'}`}
+                    >
+                      {EMPLOYEE_WAGE_TYPES.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {tr(t.label)}
+                        </option>
+                      ))}
+                    </select>
+                    <NumInput
+                      value={emp.wage}
+                      onChange={(v) => updateEmployee(i, { wage: v })}
+                      placeholder="0"
+                      suffix={(EMPLOYEE_WAGE_TYPES.find((t) => t.id === (emp.wageType || 'hourly')) ?? EMPLOYEE_WAGE_TYPES[0]).suffix}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button type="button" className="add-row" onClick={addEmployee}>
+              {tr("+ Add employee")}
+            </button>
+          </Section>
+          </>
+        )}
+
+        {obStep === 8 && (
+          <Section
+            title={tr("Terms & payment")}
+            hint={tr("Payment terms, deposits, warranty and anything else you want printed on every quote.")}
+          >
+            <Field label={tr("Terms and conditions")}>
+              <textarea
+                value={form.terms}
+                onChange={(e) => setField('terms')(e.target.value)}
+                rows={10}
+                placeholder={tr("e.g. 50% deposit due at signing, balance due on completion.")}
+              />
+            </Field>
+            <div className="list-actions">
+              <button
+                type="button"
+                className="link-btn"
+                onClick={() =>
+                  setField('terms')(
+                    (form.terms ? form.terms + '\n\n' : '') +
+                      'Payment: 50% deposit due at signing, balance due on completion. We accept check, card and bank transfer.\nBalances unpaid after 30 days may be charged a late fee of 1.5% per month.\nWarranty: workmanship is guaranteed for one year. Plants are covered for 30 days with proper watering.\nChanges to the scope of work may change the price and will be agreed in writing.',
+                  )
+                }
+              >
+                {tr("Add example wording")}
+              </button>
+            </div>
+
             {onReset && (
               <div className="danger-zone">
                 {!confirmReset ? (
@@ -2329,14 +2703,12 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                     className="link-danger"
                     onClick={() => setConfirmReset(true)}
                   >
-                    Delete all my data
+                    {tr("Delete all my data")}
                   </button>
                 ) : (
                   <div className="danger-confirm">
                     <p>
-                      This permanently deletes your business info, contacts, materials,
-                      equipment and rates from Pricr's servers, then signs you out.
-                      This can't be undone.
+                      {tr("This permanently deletes your business info, contacts, materials, equipment and rates from Pricr's servers, then signs you out. This can't be undone.")}
                     </p>
                     <div className="row">
                       <button
@@ -2344,10 +2716,10 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                         className="btn ghost"
                         onClick={() => setConfirmReset(false)}
                       >
-                        Cancel
+                        {tr("Cancel")}
                       </button>
                       <button type="button" className="btn danger" onClick={onReset}>
-                        Yes, reset everything
+                        {tr("Yes, reset everything")}
                       </button>
                     </div>
                   </div>

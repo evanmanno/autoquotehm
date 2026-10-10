@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { buildRenderPrompt, generateConcept, listRenderings, photoToBase64 } from './lib/renderings'
+import { isNative, pickPhotos } from './lib/native'
 import './concept.css'
 
 // "Project preview": turns a real photo + the quote into concept images.
@@ -89,9 +90,23 @@ export function ConceptCard({ job, est, photos, companyId, quoteId, selected, on
           e.target.value = ''
         }}
       />
-      <button type="button" className="btn ghost small" onClick={() => fileRef.current?.click()}>
-        {sources.length ? 'Use a different photo' : 'Choose photo'}
+      <button
+        type="button"
+        className="btn ghost small"
+        onClick={async () => {
+          // In the phone app this opens the camera / photo library sheet and asks for
+          // permission the first time. In a browser it opens the normal file picker.
+          if (isNative()) {
+            const files = await pickPhotos()
+            if (files[0]) choose(files[0])
+          } else {
+            fileRef.current?.click()
+          }
+        }}
+      >
+        {sources.length ? 'Use a different before photo' : 'Add a before photo'}
       </button>
+      <p className="concept-empty">Take a photo with the camera or choose one from your library.</p>
 
       <label className="concept-extra">
         <span>Style notes (optional)</span>

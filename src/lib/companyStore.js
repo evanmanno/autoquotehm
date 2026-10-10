@@ -25,6 +25,17 @@ function toDbRow(company, ownerId) {
     // Only sent once a tax rate exists, so saving still works before
     // supabase/migration_05_sales_tax.sql has been run.
     ...(company.salesTaxRate != null ? { sales_tax_rate: company.salesTaxRate } : {}),
+    // Materials, employees and terms need supabase/migration_09_materials_employees_terms.sql.
+    // Sent only when the column exists (we've read it before) or there's something to save.
+    ...(company._extras === true || company.customMaterials?.length
+      ? { custom_materials: company.customMaterials ?? [] }
+      : {}),
+    ...(company._extras === true || company.employees?.length
+      ? { employees: company.employees ?? [] }
+      : {}),
+    ...(company._extras === true || (company.terms ?? '') !== ''
+      ? { terms: company.terms ?? '' }
+      : {}),
   }
 }
 
@@ -48,11 +59,21 @@ function fromDbRow(row) {
     tripMinimum: row.trip_minimum ?? 0,
     defaultMargin: row.default_margin ?? 0,
     materials: row.materials ?? [],
-    equipment: row.equipment ?? [],
+    // Older saves named some gear "(rental)"; the app no longer uses that word.
+    equipment: (row.equipment ?? []).map((e) => ({
+      ...e,
+      name: String(e.name ?? '').replace(/\s*\(rental\)/gi, ''),
+    })),
+    customMaterials: row.custom_materials ?? [],
+    employees: row.employees ?? [],
+    terms: row.terms ?? '',
+    _extras: 'custom_materials' in row,
     brandColor: row.brand_color ?? '#1f6f45',
     logoUrl: row.logo_url ?? '',
     industries: row.industries ?? [],
     salesTaxRate: row.sales_tax_rate ?? undefined,
+    // Set by Settings > Manage plan (never by saveCompany, so profile edits can't change it).
+    plan: row.plan ?? 'starter',
   }
 }
 
@@ -92,4 +113,17 @@ export async function uploadLogo(file, ownerId) {
 export async function deleteCompany(ownerId) {
   const { error } = await supabase.from('companies').delete().eq('owner_id', ownerId)
   if (error) throw error
+}
+
+// Changes this company's subscription plan. Billing isn't connected yet, so this
+// is a plain update; once Stripe is wired up, move it behind a webhook.
+export async function setCompanyPlan(companyId, planId) {
+  const { data, error } = await supabase
+    .from('companies')
+    .update({ plan: planId })
+    .eq('id', companyId)
+    .select('plan')
+    .maybeSingle()
+  if (error) throw error
+  return data?.plan ?? planId
 }
