@@ -159,7 +159,7 @@ export function buildEmailBody(job, est, photoCount, company) {
   if (est.travelCost > 0) {
     parts.push(
       line(
-        `Travel — ${qty(est.driveMiles)} mi x ${money(est.mileageRate)}/mi`,
+        `Fuel & travel charge — ${qty(est.driveMiles)} mi x ${money(est.mileageRate)}/mi`,
         money(est.travelCost),
       ),
     )

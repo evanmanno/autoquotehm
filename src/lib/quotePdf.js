@@ -105,8 +105,8 @@ export function buildCustomerLines(est) {
   })
   if (est.travelCost > 0) {
     groups.other.push({
-      name: 'Travel',
-      desc: `${qty(est.driveMiles)} miles total`,
+      name: 'Fuel & travel charge',
+      desc: `${qty(est.driveMiles)} mi total × ${money(est.mileageRate)}/mi`,
       qtyText: '1',
       quantity: 1,
       cost: est.travelCost,

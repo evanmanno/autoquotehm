@@ -55,11 +55,16 @@ export const INDUSTRIES = [
 // whether it fell 2" or 10", so it isn't. Placeholder multipliers: tune them to
 // your own per-inch pricing in Company Settings.
 export const SNOW_DEPTH = [
-  { id: 'light', label: 'Under 3"', mult: 1 },
+  { id: 'light', label: '0–3"', mult: 1 },
   { id: 'mid', label: '3–6"', mult: 1.35 },
-  { id: 'heavy', label: '6–12"', mult: 1.8 },
-  { id: 'storm', label: '12"+ storm', mult: 2.5 },
+  { id: 'heavy', label: '6–9"', mult: 1.8 },
+  { id: 'deep', label: '9–12"', mult: 2.2 },
+  { id: 'storm', label: '12"+', mult: 2.7 },
 ]
+
+// Hide the "pushes / visits" box on the quote form (visits stay at 1). Flip to
+// true for companies that quote several pushes or a seasonal visit count.
+export const SHOW_SNOW_VISITS = false
 
 // Equipment follows the same pattern as INDUSTRY_SERVICES -- checking a trade
 // also seeds the day-rate gear that trade typically bills separately.

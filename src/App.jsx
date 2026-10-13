@@ -6,6 +6,7 @@ import {
   INDUSTRY_EQUIPMENT,
   INDUSTRY_SERVICES,
   SNOW_DEPTH,
+  SHOW_SNOW_VISITS,
   LABOR_RATE,
   MILEAGE_RATE,
   MIN_JOB_CHARGE,
@@ -118,6 +119,25 @@ function loadDraft() {
   } catch {
     return emptyJob
   }
+}
+
+const GLYPHS = [
+  [/sod|turf|lawn|mow|seed|fertiliz|aerat|dethatch/i, '🌱'],
+  [/mulch|bed|edging|garden|plant|shrub|tree|flower/i, '🌿'],
+  [/patio|paver|walkway|walk|wall|retain|steps|stone|hardscape/i, '🧱'],
+  [/irrigat|sprinkler|drain/i, '💧'],
+  [/light/i, '💡'],
+  [/salt|deic/i, '🧂'],
+  [/snow|plow|shovel|sidewalk|ice/i, '❄️'],
+  [/clean|wash/i, '🧽'],
+  [/gutter|roof/i, '🏠'],
+  [/haul|remov|dump|debris|dispos/i, '🚚'],
+  [/fence/i, '🪵'],
+  [/grad|excavat|dirt|loam|soil/i, '⛏️'],
+]
+const serviceGlyph = (service) => {
+  const hit = GLYPHS.find(([re]) => re.test(service.name || ''))
+  return hit ? hit[1] : '🛠️'
 }
 
 export default function App() {
@@ -752,6 +772,7 @@ export default function App() {
                     <span className="check" aria-hidden="true">
                       {on ? '✓' : ''}
                     </span>
+                    <span className="service-icon" aria-hidden="true">{serviceGlyph(service)}</span>
                     <span className="service-text">
                       <strong>{service.name}</strong>
                       <small>
@@ -876,7 +897,7 @@ export default function App() {
                 <div className="subgroup">
                   <h3>{tr("Snow conditions")}</h3>
                   <p className="subgroup-hint">
-                    {tr('Plowing and shoveling scale with depth; every snow service multiplies by the number of pushes. Quoting a seasonal contract? Enter the visits you expect.')}
+                    {tr('Plowing and shoveling price by square footage and scale with snowfall depth. Salting is a flat rate per square foot.')}
                   </p>
                   <Field label={tr("Snowfall depth")}>
                     <div className="segmented">
@@ -892,14 +913,16 @@ export default function App() {
                       ))}
                     </div>
                   </Field>
-                  <Field label={tr("Pushes / visits")}>
-                    <NumInput
-                      value={job.snowVisits}
-                      onChange={set('snowVisits')}
-                      placeholder="1"
-                      suffix="visits"
-                    />
-                  </Field>
+                  {SHOW_SNOW_VISITS && (
+                    <Field label={tr("Pushes / visits")}>
+                      <NumInput
+                        value={job.snowVisits}
+                        onChange={set('snowVisits')}
+                        placeholder="1"
+                        suffix="visits"
+                      />
+                    </Field>
+                  )}
                 </div>
               )}
             </Section>
@@ -2687,7 +2710,7 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                 onClick={() =>
                   setField('terms')(
                     (form.terms ? form.terms + '\n\n' : '') +
-                      'Payment: 50% deposit due at signing, balance due on completion. We accept check, card and bank transfer.\nBalances unpaid after 30 days may be charged a late fee of 1.5% per month.\nWarranty: workmanship is guaranteed for one year. Plants are covered for 30 days with proper watering.\nChanges to the scope of work may change the price and will be agreed in writing.',
+                      'Payment: 50% deposit due at signing, balance due on completion. We accept Apple Pay, credit/debit card, ACH bank transfer, electronic check and paper check.\nBalances unpaid after 30 days may be charged a late fee of 1.5% per month.\nWarranty: workmanship is guaranteed for one year. Plants are covered for 30 days with proper watering.\nChanges to the scope of work may change the price and will be agreed in writing.',
                   )
                 }
               >

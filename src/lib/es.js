@@ -143,7 +143,7 @@ const es = {
   "Phone number": "Número de teléfono",
   "Pick your trades. We add starter services and equipment you can edit later.": "Elige tus oficios. Agregamos servicios y equipo iniciales que puedes editar después.",
   "Please wait...": "Espera un momento...",
-  "Plowing and shoveling scale with depth; every snow service multiplies by the number of pushes. Quoting a seasonal contract? Enter the visits you expect.": "El despeje con pala y arado depende de la profundidad; cada servicio de nieve se multiplica por el número de pasadas. ¿Cotizas un contrato de temporada? Anota las visitas que esperas.",
+  "Plowing and shoveling price by square footage and scale with snowfall depth. Salting is a flat rate per square foot.": "El despeje y el palado se cobran por pie cuadrado y escalan con la profundidad de nieve. La sal es una tarifa fija por pie cuadrado.",
   "Priced on each quote": "Se define en cada cotización",
   "Priced separately — TBD": "Se cotiza por separado — por definir",
   "Profit built into every quote": "Ganancia incluida en cada cotización",
