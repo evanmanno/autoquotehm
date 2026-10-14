@@ -2638,7 +2638,7 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
 
           <Section
             title={tr("Employees")}
-            hint={tr("Add each person and what you pay them. Daily is figured on 8 hours, weekly on 40 and salary on 2,080 hours a year. Pick them on a quote to cost labor from their actual wages.")}
+            hint={tr("Add each person and what you pay them. Daily is figured on 8 hours, weekly on 40 and salary on 2,080 hours a year. Pick them on a quote to cost labor from their actual wages. Wages are visible to estimators you invite.")}
           >
             <div className="edit-list">
               {form.employees.map((emp, i) => (

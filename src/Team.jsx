@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { money } from './pricing'
-import { getPlan } from './lib/plans'
+import { getPlan, SHOW_PLANS } from './lib/plans'
 import { getLang, tr } from './lib/i18n'
 import {
   QUOTE_STATUSES,
@@ -245,12 +245,31 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
     }
   }
 
+  // Opens the phone's share sheet (text, email, etc.) when available.
+  const shareInvite = async (url, email) => {
+    const text = tr('Join {team} on Pricr. Sign up with {email} using this link: {url}', {
+      team: company.businessName || tr('our team'),
+      email,
+      url,
+    })
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: tr('Team invite'), text })
+        return
+      } catch (err) {
+        if (err?.name === 'AbortError') return
+      }
+    }
+    copy(url, 'fresh')
+  }
+
   const sendInvite = async (e) => {
     e.preventDefault()
     const email = inviteEmail.trim()
     if (!email || inviting) return
     const plan = getPlan(company.plan)
-    if ((members?.length ?? 0) + invites.length >= plan.estimators) {
+    // While plans are hidden (pilot), nobody is held to the estimator cap.
+    if (SHOW_PLANS && (members?.length ?? 0) + invites.length >= plan.estimators) {
       setError(
         tr('Your {plan} plan includes {n} estimator logins. Upgrade your plan to add more people.', {
           plan: tr(plan.name),
@@ -405,9 +424,15 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
                 {tr('Send this link to')} <strong>{freshLink.email}</strong>:
               </p>
               <code>{freshLink.url}</code>
+              <button type="button" className="btn primary small" onClick={() => shareInvite(freshLink.url, freshLink.email)}>
+                {tr('Text or email this link')}
+              </button>{' '}
               <button type="button" className="btn ghost small" onClick={() => copy(freshLink.url, 'fresh')}>
                 {copied === 'fresh' ? tr('Copied') : tr('Copy link')}
               </button>
+              <p className="subgroup-hint">
+                {tr('They must sign up with exactly this email. After they join, they quote with your prices.')}
+              </p>
             </div>
           )}
 

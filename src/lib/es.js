@@ -339,7 +339,7 @@ const es = {
   "Daily": "Por día",
   "Weekly": "Por semana",
   "Yearly salary": "Salario anual",
-  "Add each person and what you pay them. Daily is figured on 8 hours, weekly on 40 and salary on 2,080 hours a year. Pick them on a quote to cost labor from their actual wages.": "Agrega a cada persona y lo que le pagas. El pago diario se calcula con 8 horas, el semanal con 40 y el salario con 2,080 horas al año. Elígelos en una cotización para calcular la mano de obra con sus sueldos reales.",
+  "Add each person and what you pay them. Daily is figured on 8 hours, weekly on 40 and salary on 2,080 hours a year. Pick them on a quote to cost labor from their actual wages. Wages are visible to estimators you invite.": "Agrega a cada persona y lo que le pagas. El pago diario se calcula con 8 horas, el semanal con 40 y el salario con 2,080 horas al año. Elígelos en una cotización para calcular la mano de obra con sus sueldos reales. Los sueldos son visibles para los estimadores que invites.",
   "Who's on this job": "Quién está en este trabajo",
   "Pick your employees to cost labor from their actual wages. Leave blank to use the number of crew members and your labor rate.": "Elige a tus empleados para calcular la mano de obra con sus sueldos reales. Déjalo en blanco para usar el número de miembros del equipo y tu tarifa de mano de obra.",
   "{n} selected below": "{n} elegidos abajo",
@@ -358,7 +358,12 @@ const es = {
   "Terms and conditions": "Términos y condiciones",
   "Payment terms, deposits, warranty and anything else you want printed on every quote.": "Términos de pago, depósitos, garantía y todo lo que quieras imprimir en cada cotización.",
   "Add example wording": "Agregar texto de ejemplo",
-  "Contact Pricr to raise your quote limit.": "Comunícate con Pricr para aumentar tu límite de cotizaciones."
+  "Contact Pricr to raise your quote limit.": "Comunícate con Pricr para aumentar tu límite de cotizaciones.",
+  "Join {team} on Pricr. Sign up with {email} using this link: {url}": "Únete a {team} en Pricr. Regístrate con {email} usando este enlace: {url}",
+  "Team invite": "Invitación al equipo",
+  "our team": "nuestro equipo",
+  "Text or email this link": "Enviar este enlace por texto o correo",
+  "They must sign up with exactly this email. After they join, they quote with your prices.": "Deben registrarse con exactamente este correo. Al unirse, cotizan con tus precios."
 }
 
 export default es

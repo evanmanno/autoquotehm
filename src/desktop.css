@@ -1,0 +1,139 @@
+/* Laptop / desktop layout. Phones keep the single-column app; from 1000px up
+   the app widens, the tab bar becomes a left sidebar and forms use two columns. */
+@media (min-width: 1000px) {
+  .app {
+    max-width: 1180px;
+    padding: 0 28px;
+  }
+
+  .topbar {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .content {
+    padding: 22px 0 12px;
+    gap: 18px;
+  }
+
+  /* --- sidebar nav (replaces the bottom tab bar) --- */
+  .app.has-tabbar {
+    display: grid;
+    grid-template-columns: 210px minmax(0, 1fr);
+    grid-template-rows: auto 1fr auto;
+    column-gap: 32px;
+  }
+  .app.has-tabbar > .topbar {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+  .app.has-tabbar > .content {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .app.has-tabbar > .footer {
+    grid-column: 2;
+    grid-row: 3;
+    bottom: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .app.has-tabbar > .tabbar {
+    grid-column: 1;
+    grid-row: 2 / span 2;
+    position: sticky;
+    top: 96px;
+    bottom: auto;
+    align-self: start;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 22px;
+    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+  }
+  .tabbar button {
+    flex: none;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    font-size: 14.5px;
+  }
+  .tabbar button:hover {
+    background: var(--surface-2);
+  }
+  .tabbar button.on {
+    background: var(--accent-dim);
+  }
+  .tabbar svg {
+    width: 20px;
+    height: 20px;
+  }
+  .has-tabbar .footer {
+    bottom: 0;
+  }
+
+  /* --- forms: two columns inside each card --- */
+  .card {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 22px;
+    align-content: start;
+    padding: 24px 26px;
+  }
+  .card > * {
+    grid-column: 1 / -1;
+  }
+  .card > .field {
+    grid-column: auto;
+  }
+  .card > .field:has(textarea),
+  .card > .field:has(.segmented),
+  .card > .field:has(.chip-grid) {
+    grid-column: 1 / -1;
+  }
+  .card > .field:last-child {
+    margin-bottom: 16px;
+  }
+
+  /* grouped inputs (linear footage, counts, materials...) sit side by side */
+  .card > .subgroup {
+    grid-column: auto;
+    margin-bottom: 18px;
+  }
+  .card > .subgroup:has(.segmented),
+  .card > .subgroup:has(.chip-grid),
+  .card > .subgroup:has(.service-list) {
+    grid-column: 1 / -1;
+  }
+
+  /* lists of services, materials, equipment, employees, quotes */
+  .service-list,
+  .tq-list,
+  .edit-list,
+  .team-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .chip-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  /* wizard + onboarding pages have no sidebar, so keep them readable */
+  .app:not(.has-tabbar) .content {
+    max-width: 960px;
+    width: 100%;
+    margin: 0 auto;
+  }
+  .app:not(.has-tabbar) .footer {
+    max-width: 960px;
+    width: 100%;
+    margin: 0 auto;
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
