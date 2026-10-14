@@ -552,3 +552,20 @@
 .team-item { flex-wrap: wrap; min-width: 0; }
 .team-item > div { flex: 1 1 150px; min-width: 0; }
 .team-item .tq-actions { flex: 0 0 auto; }
+
+/* Editing the business from Settings: the section tabs are real tappable pills. */
+.steps-pills { gap: 8px; padding: 2px 2px 8px; margin-top: 8px; }
+.steps-scroll.steps-pills .step {
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 13px;
+  color: var(--text-2);
+}
+.steps-scroll.steps-pills .step.current {
+  background: var(--accent-dim);
+  border-color: var(--accent-line);
+  color: var(--accent-hi);
+}
+.steps-scroll.steps-pills .step.done { color: var(--text-2); }

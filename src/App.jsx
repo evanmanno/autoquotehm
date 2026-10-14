@@ -2422,6 +2422,21 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
     setObStep((s) => Math.max(onCancel ? 1 : 0, s - 1))
   }
 
+  // Editing an existing business: save from any section. If something required
+  // is still blank, jump to the section that needs it instead of blocking.
+  const saveFromAnywhere = () => {
+    if (saving) return
+    if (!form.businessName.trim() || !form.contactEmail.trim()) {
+      setObStep(2)
+      return
+    }
+    if (!form.crewMemberName.trim()) {
+      setObStep(1)
+      return
+    }
+    save()
+  }
+
   const goPrimary = () => {
     if (obStep === 0) {
       setObStep(1)
@@ -2470,13 +2485,15 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
 
         {obStep > 0 && (
           <div className="progress">
-            <div className="track">
-              <div
-                className="fill"
-                style={{ width: `${((obStep - 1) / (FORM_STEPS.length - 1)) * 100}%` }}
-              />
-            </div>
-            <div className="steps steps-scroll">
+            {!onCancel && (
+              <div className="track">
+                <div
+                  className="fill"
+                  style={{ width: `${((obStep - 1) / (FORM_STEPS.length - 1)) * 100}%` }}
+                />
+              </div>
+            )}
+            <div className={`steps steps-scroll ${onCancel ? 'steps-pills' : ''}`}>
               {FORM_STEPS.map((label, i) => {
                 const target = i + 1
                 const clickable = onCancel || target < obStep
@@ -3186,19 +3203,32 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
       </main>
 
       <footer className="footer">
-        {obStep > 0 && (
-          <button type="button" className="btn ghost" onClick={goBack}>
-            {backLabel}
-          </button>
+        {onCancel && obStep > 0 ? (
+          <>
+            <button type="button" className="btn ghost" onClick={onCancel}>
+              {tr('Cancel')}
+            </button>
+            <button type="button" className="btn primary" disabled={saving} onClick={saveFromAnywhere}>
+              {saving ? tr('Saving...') : tr('Save changes')}
+            </button>
+          </>
+        ) : (
+          <>
+            {obStep > 0 && (
+              <button type="button" className="btn ghost" onClick={goBack}>
+                {backLabel}
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn primary"
+              disabled={obStep > 0 && (isLast ? !canSave || saving : !canAdvance)}
+              onClick={goPrimary}
+            >
+              {primaryLabel}
+            </button>
+          </>
         )}
-        <button
-          type="button"
-          className="btn primary"
-          disabled={obStep > 0 && (isLast ? !canSave || saving : !canAdvance)}
-          onClick={goPrimary}
-        >
-          {primaryLabel}
-        </button>
       </footer>
     </div>
   )
