@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { appUrl } from './lib/appUrl'
 import {
   CATEGORIES,
   DUMP_FEE,
@@ -33,6 +34,7 @@ import { deleteCompany, fetchCompany, saveCompany, setCompanyPlan, uploadLogo } 
 import { buildCustomerLines, buildQuotePdf, customerRows, isLineHidden } from './lib/quotePdf'
 import { canApprove as roleCanApprove } from './lib/roles'
 import {
+  acceptMyInvite,
   acceptPendingInvite,
   captureInviteFromUrl,
   countQuotesThisMonth,
@@ -270,7 +272,16 @@ export default function App() {
           else setInviteError(res.message)
         }
       }
-      const c = await fetchCompany()
+      let c = await fetchCompany()
+      if (!c && active) {
+        // No company yet: if an invite is waiting for this email, join it even
+        // when the invite link itself was lost along the way.
+        if (await acceptMyInvite()) {
+          setInviteJoined(true)
+          setInviteError('')
+          c = await fetchCompany()
+        }
+      }
       if (!active) return
       setCompany(c)
       if (c) {
@@ -562,7 +573,7 @@ export default function App() {
             `Approval needed — ${job.customerName || 'quote'} — ${money(est.quotePrice)}`,
             `${reviewerName || 'A teammate'} sent a quote for approval.\n\nCustomer: ${job.customerName || '—'}\nQuote: ${money(est.quotePrice)}${
               note?.trim() ? `\nNote: ${note.trim()}` : ''
-            }\n\nOpen Pricr and go to Quotes to approve it: ${window.location.origin}`,
+            }\n\nOpen Pricr and go to Quotes to approve it: ${appUrl()}`,
           ),
         )
         .catch(() => {})
@@ -596,7 +607,7 @@ export default function App() {
           `Changes requested — ${job.customerName || 'quote'}`,
           `${reviewerName} sent your quote for ${job.customerName || 'a customer'} back${
             note?.trim() ? `:\n\n${note.trim()}` : '.'
-          }\n\nOpen Pricr and go to Quotes to update it and send it again: ${window.location.origin}`,
+          }\n\nOpen Pricr and go to Quotes to update it and send it again: ${appUrl()}`,
         ),
       )
     } catch (err) {

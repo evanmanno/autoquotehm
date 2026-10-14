@@ -292,11 +292,13 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
 
   // Opens the phone's share sheet (text, email, etc.) when available.
   const shareInvite = async (url, email) => {
-    const text = tr('Join {team} on Pricr. Sign up with {email} using this link: {url}', {
-      team: company.businessName || tr('our team'),
-      email,
-      url,
-    })
+    const text = url
+      ? tr('Join {team} on Pricr. Sign up with {email} using this link: {url}', {
+          team: company.businessName || tr('our team'),
+          email,
+          url,
+        })
+      : `Join ${company.businessName || tr('our team')} on Pricr. Download the app and sign up with this email: ${email}`
     if (navigator.share) {
       try {
         await navigator.share({ title: tr('Team invite'), text })
@@ -305,7 +307,7 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
         if (err?.name === 'AbortError') return
       }
     }
-    copy(url, 'fresh')
+    copy(url || text, 'fresh')
   }
 
   const sendInvite = async (e) => {
@@ -510,7 +512,7 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
               <p>
                 {tr('Send this link to')} <strong>{freshLink.email}</strong>:
               </p>
-              <code>{freshLink.url}</code>
+              {freshLink.url && <code>{freshLink.url}</code>}
               <button type="button" className="btn primary small" onClick={() => shareInvite(freshLink.url, freshLink.email)}>
                 {tr('Text or email this link')}
               </button>{' '}

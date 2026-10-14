@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient'
+import { appUrl } from './appUrl'
 
 // ---------------------------------------------------------------------------
 // Invites: the owner creates one in Team, shares the link, and the teammate
@@ -42,7 +43,21 @@ export const clearPendingInvite = () => {
   }
 }
 
-export const inviteLink = (token) => `${window.location.origin}/?invite=${token}`
+// Empty when this build doesn't know the public web address (see appUrl.js);
+// the teammate can still join by signing up with the invited email.
+export const inviteLink = (token) => (appUrl() ? `${appUrl()}/?invite=${token}` : '')
+
+// Safety net for lost links: if this signed-in person has no company yet but an
+// unused invite was sent to their (confirmed) email, join it. Returns true if
+// they joined a team.
+export async function acceptMyInvite() {
+  const { data, error } = await supabase.rpc('accept_my_invite')
+  if (error) {
+    console.warn('accept_my_invite failed:', error.message)
+    return false
+  }
+  return Boolean(data)
+}
 
 // Joins the signed-in user to the inviting company. Returns { ok, message }.
 // A "wrong email" error keeps the token so the right account can still use it.
