@@ -420,7 +420,13 @@ const pt = {
   "Approved": "Aprovado",
   "Needs approval": "Precisa de aprovação",
   "Changes requested": "Alterações solicitadas",
-  "Manager": "Gerente"
+  "Manager": "Gerente",
+  "Building class": "Classe do edifício",
+  "Not specified": "Não especificada",
+  "Class A": "Classe A",
+  "Class B": "Classe B",
+  "Class C": "Classe C",
+  "Class A is a premium property that expects the fastest, most thorough service; B is standard; C is older or basic. Each class adjusts the snow rates.": "A classe A é um imóvel premium que espera o serviço mais rápido e completo; a B é padrão; a C é mais antiga ou básica. Cada classe ajusta as tarifas de neve.",
 }
 
 export default pt

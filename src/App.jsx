@@ -8,6 +8,7 @@ import {
   INDUSTRY_SERVICES,
   SNOW_DEPTH,
   SHOW_SNOW_VISITS,
+  BUILDING_CLASS,
   LABOR_RATE,
   MILEAGE_RATE,
   MIN_JOB_CHARGE,
@@ -100,6 +101,7 @@ const emptyJob = {
   serviceSqft: {},
   serviceQty: {},
   snowDepth: 'light',
+  buildingClass: '',
   snowVisits: '1',
   laborHours: '',
   crewMembers: '2',
@@ -1141,6 +1143,23 @@ export default function App() {
                         </button>
                       ))}
                     </div>
+                  </Field>
+                  <Field label={tr("Building class")}>
+                    <div className="segmented">
+                      {BUILDING_CLASS.map((c) => (
+                        <button
+                          key={c.id || 'none'}
+                          type="button"
+                          className={(job.buildingClass || '') === c.id ? 'on' : ''}
+                          onClick={() => set('buildingClass')(c.id)}
+                        >
+                          {tr(c.label)}
+                        </button>
+                      ))}
+                    </div>
+                    <small className="field-hint">
+                      {tr('Class A is a premium property that expects the fastest, most thorough service; B is standard; C is older or basic. Each class adjusts the snow rates.')}
+                    </small>
                   </Field>
                   {SHOW_SNOW_VISITS && (
                     <Field label={tr("Pushes / visits")}>

@@ -62,6 +62,18 @@ export const SNOW_DEPTH = [
   { id: 'storm', label: '12"+', mult: 2.7 },
 ]
 
+// Building class (A / B / C) for snow work. Higher-class properties expect
+// faster, more thorough service, so each class nudges the rate of every snow
+// line. "Not specified" changes nothing. Placeholder multipliers -- tune them
+// to your own market.
+export const BUILDING_CLASS = [
+  { id: '', label: 'Not specified', mult: 1 },
+  { id: 'a', label: 'Class A', mult: 1.15 },
+  { id: 'b', label: 'Class B', mult: 1 },
+  { id: 'c', label: 'Class C', mult: 0.9 },
+]
+export const buildingClassById = (id) => BUILDING_CLASS.find((c) => c.id === (id || '')) ?? BUILDING_CLASS[0]
+
 // Hide the "pushes / visits" box on the quote form (visits stay at 1). Flip to
 // true for companies that quote several pushes or a seasonal visit count.
 export const SHOW_SNOW_VISITS = false
@@ -239,6 +251,7 @@ export function estimate(job, company) {
       let name = service.name
       let visits = 1
       let depthLabel = ''
+      let classLabel = ''
       const baseQuantity = quantity
       // Snow: more pushes multiply the quantity, deeper snow multiplies the rate.
       // Folding both into quantity/rate keeps every "qty x rate = cost" display
@@ -254,6 +267,14 @@ export function estimate(job, company) {
         depthLabel = depth.label
         name += ` (${depth.label} snow)`
       }
+      if (!tbd && (service.perVisit || service.depthScaled)) {
+        const bc = buildingClassById(job.buildingClass)
+        if (bc.id) {
+          rate *= bc.mult
+          classLabel = bc.label
+          name += ` — ${bc.label} building`
+        }
+      }
       return {
         id,
         name,
@@ -266,6 +287,7 @@ export function estimate(job, company) {
         baseQuantity,
         visits,
         depthLabel,
+        classLabel,
         cost: tbd ? 0 : quantity * rate,
         tbd,
       }

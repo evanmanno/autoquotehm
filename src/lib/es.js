@@ -421,7 +421,13 @@ const es = {
   "Approved": "Aprobada",
   "Needs approval": "Necesita aprobación",
   "Changes requested": "Cambios solicitados",
-  "Manager": "Gerente"
+  "Manager": "Gerente",
+  "Building class": "Clase de edificio",
+  "Not specified": "Sin especificar",
+  "Class A": "Clase A",
+  "Class B": "Clase B",
+  "Class C": "Clase C",
+  "Class A is a premium property that expects the fastest, most thorough service; B is standard; C is older or basic. Each class adjusts the snow rates.": "La clase A es una propiedad premium que espera el servicio más rápido y completo; la B es estándar; la C es más antigua o básica. Cada clase ajusta las tarifas de nieve.",
 }
 
 export default es

@@ -58,7 +58,7 @@ export function buildCustomerLines(est) {
         name: item.baseName,
         desc: `${qty(item.baseQuantity)} ${item.unitLabel ?? ''} per visit${
           item.depthLabel ? `, ${item.depthLabel} snow` : ''
-        }`.replace(/\s+,/, ','),
+        }${item.classLabel ? `, ${item.classLabel} building` : ''}`.replace(/\s+,/, ','),
         qtyText: `${item.visits} visits`,
         quantity: item.visits,
         cost: item.cost,
@@ -70,7 +70,7 @@ export function buildCustomerLines(est) {
       name: item.baseName ?? item.name,
       desc: item.tbd
         ? 'To be priced separately'
-        : [item.note, item.depthLabel ? `${item.depthLabel} snow` : ''].filter(Boolean).join(', '),
+        : [item.note, item.depthLabel ? `${item.depthLabel} snow` : '', item.classLabel ? `${item.classLabel} building` : ''].filter(Boolean).join(', '),
       qtyText: item.tbd ? '—' : `${qty(item.quantity)} ${item.unitLabel ?? ''}`.trim(),
       quantity: item.quantity,
       cost: item.cost,
