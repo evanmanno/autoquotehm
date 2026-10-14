@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient'
+import { consentMeta } from './consent'
 
 export async function getInitialSession() {
   const { data } = await supabase.auth.getSession()
@@ -13,9 +14,17 @@ export function onAuthChange(callback) {
 }
 
 export async function signUp(email, password) {
-  const { data, error } = await supabase.auth.signUp({ email, password })
+  const { data, error } = await supabase.auth.signUp({ email, password, options: { data: consentMeta() } })
   if (error) throw error
   return data
+}
+
+// Records agreement to the market-insights terms for an already signed-in
+// account. Returns the updated user.
+export async function recordConsent() {
+  const { data, error } = await supabase.auth.updateUser({ data: consentMeta() })
+  if (error) throw error
+  return data.user
 }
 
 export async function signIn(email, password) {

@@ -1,25 +1,17 @@
-import { setLang, useLang } from './lib/i18n'
+import { LANGUAGES, setLang, useLang } from './lib/i18n'
 
-// English | Español switch. Used on the sign-in screen and in Settings.
+// Language dropdown. Used on the sign-in screen and in Settings.
 export default function LangToggle({ className = '' }) {
   const lang = useLang()
   return (
-    <div className={`lang-toggle ${className}`} role="radiogroup" aria-label="Language / Idioma">
-      {[
-        ['en', 'English'],
-        ['es', 'Español'],
-      ].map(([id, label]) => (
-        <button
-          key={id}
-          type="button"
-          role="radio"
-          aria-checked={lang === id}
-          className={lang === id ? 'on' : ''}
-          onClick={() => setLang(id)}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
+    <label className={`lang-select ${className}`}>
+      <select value={lang} onChange={(e) => setLang(e.target.value)} aria-label="Language / Idioma / Idioma">
+        {LANGUAGES.map((l) => (
+          <option key={l.id} value={l.id}>
+            {l.name}
+          </option>
+        ))}
+      </select>
+    </label>
   )
 }

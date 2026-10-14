@@ -16,7 +16,8 @@ select
        and q.created_at >= date_trunc('month', now()))       as quotes_this_month,
   (select max(q.created_at)::date from quotes q
      where q.company_id = c.id)                              as last_quote,
-  u.last_sign_in_at::date                             as last_login
+  u.last_sign_in_at::date                             as last_login,
+  u.raw_user_meta_data->>'data_consent_at'            as market_data_agreed_at
 from auth.users u
 left join companies c on c.owner_id = u.id
 order by u.created_at desc;

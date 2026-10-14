@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { money } from './pricing'
 import { getPlan, SHOW_PLANS } from './lib/plans'
-import { getLang, tr } from './lib/i18n'
+import { getLocale, tr } from './lib/i18n'
 import {
   QUOTE_STATUSES,
   createInvite,
@@ -21,7 +21,7 @@ const errText = (err, fallback) => err?.message || fallback
 const fmtDate = (iso) => {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
-  return d.toLocaleDateString(getLang() === 'es' ? 'es-US' : 'en-US', { month: 'short', day: 'numeric' })
+  return d.toLocaleDateString(getLocale(), { month: 'short', day: 'numeric' })
 }
 
 // ---------------------------------------------------------------------------

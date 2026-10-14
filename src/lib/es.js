@@ -363,7 +363,20 @@ const es = {
   "Team invite": "Invitación al equipo",
   "our team": "nuestro equipo",
   "Text or email this link": "Enviar este enlace por texto o correo",
-  "They must sign up with exactly this email. After they join, they quote with your prices.": "Deben registrarse con exactamente este correo. Al unirse, cotizan con tus precios."
+  "They must sign up with exactly this email. After they join, they quote with your prices.": "Deben registrarse con exactamente este correo. Al unirse, cotizan con tus precios.",
+  "Quotes and PDFs your customers receive stay in English.": "Las cotizaciones y los PDF que reciben tus clientes siguen en inglés.",
+  "Translations are new. If something reads wrong, tell us and we'll fix it.": "Las traducciones son nuevas. Si algo se lee mal, avísanos y lo corregimos.",
+  "Market insights": "Información del mercado",
+  "One quick thing before you start": "Una cosa rápida antes de empezar",
+  "Pricr turns quote data from businesses on Pricr into a weekly market newsletter: average prices, typical margins and snow pricing trends in your area, so everyone can price with confidence.": "Pricr convierte los datos de cotizaciones de los negocios en Pricr en un boletín semanal del mercado: precios promedio, márgenes típicos y tendencias de precios de nieve en tu zona, para que todos cobren con confianza.",
+  "We combine data from many businesses. We never publish your company name, your customers' names or addresses, or your individual prices.": "Combinamos datos de muchos negocios. Nunca publicamos el nombre de tu empresa, los nombres ni direcciones de tus clientes, ni tus precios individuales.",
+  "I agree that Pricr may collect my business's prices and quote totals (never customer names or contact details) and combine them into anonymous market reports and a weekly newsletter.": "Acepto que Pricr pueda recopilar los precios y totales de cotizaciones de mi negocio (nunca nombres ni datos de contacto de clientes) y combinarlos en informes de mercado anónimos y un boletín semanal.",
+  "What we use and what we never use": "Qué usamos y qué nunca usamos",
+  "We use: the rates and margins you set, which services you quote, quote totals, general area (such as town or ZIP code) and dates.": "Usamos: las tarifas y márgenes que defines, qué servicios cotizas, los totales de las cotizaciones, la zona general (como ciudad o código postal) y las fechas.",
+  "We never use or share: customer names, phone numbers, emails or addresses, your photos or your company name.": "Nunca usamos ni compartimos: nombres, teléfonos, correos ni direcciones de clientes, tus fotos ni el nombre de tu empresa.",
+  "Numbers are combined across several businesses and shown as averages and ranges, so no company can be picked out.": "Los números se combinan entre varios negocios y se muestran como promedios y rangos, para que no se pueda identificar a ninguna empresa.",
+  "To stop contributing, delete your business data in Settings.": "Para dejar de contribuir, elimina los datos de tu negocio en Ajustes.",
+  "Agree and continue": "Acepto y continuar"
 }
 
 export default es

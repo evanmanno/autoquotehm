@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ENTERPRISE_EMAIL, PLANS, getPlan, nextReset } from './lib/plans'
 import { listMembers } from './lib/teamStore'
-import { getLang, tr, useLang } from './lib/i18n'
+import { getLocale, tr, useLang } from './lib/i18n'
 
 const money = (n) => `$${n.toLocaleString('en-US')}`
 
@@ -28,7 +28,7 @@ export default function PlanPage({ company, used, isOwner, onChangePlan }) {
   const usedCount = used ?? 0
   const pct = Math.min(100, Math.round((usedCount / current.quotes) * 100))
   const level = pct >= 100 ? 'full' : pct >= 80 ? 'high' : ''
-  const reset = nextReset().toLocaleDateString(getLang() === 'es' ? 'es-US' : 'en-US', {
+  const reset = nextReset().toLocaleDateString(getLocale(), {
     month: 'long',
     day: 'numeric',
   })

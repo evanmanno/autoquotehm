@@ -26,7 +26,9 @@ import {
 import { isConfigured, sendQuote } from './email'
 import logoIcon from './assets/logo-icon.png'
 import { haptic, isNative, pickPhotos } from './lib/native'
-import { getInitialSession, onAuthChange, signIn, signOut, signUp } from './lib/auth'
+import { getInitialSession, onAuthChange, recordConsent, signIn, signOut, signUp } from './lib/auth'
+import { hasDataConsent } from './lib/consent'
+import { ConsentFields, ConsentGate } from './Consent'
 import { deleteCompany, fetchCompany, saveCompany, setCompanyPlan, uploadLogo } from './lib/companyStore'
 import { buildQuotePdf } from './lib/quotePdf'
 import {
@@ -513,6 +515,20 @@ export default function App() {
 
   if (!session) {
     return <Login invited={hasInvite} />
+  }
+
+  // Everyone agrees to the market-insights terms once. New sign-ups tick the
+  // box on the sign-up form; accounts that predate it land here.
+  if (!hasDataConsent(session.user)) {
+    return (
+      <ConsentGate
+        onAccept={async () => {
+          const user = await recordConsent()
+          setSession((s) => (s ? { ...s, user } : s))
+        }}
+        onSignOut={signOutNow}
+      />
+    )
   }
 
   // They followed an invite link but it couldn't be used (wrong email, used,
@@ -1565,6 +1581,7 @@ function Login({ invited }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [checkEmail, setCheckEmail] = useState(false)
+  const [agreed, setAgreed] = useState(false)
 
   const submit = async (e) => {
     e.preventDefault()
@@ -1677,8 +1694,9 @@ function Login({ invited }) {
                 placeholder={mode === 'signup' ? tr('At least 6 characters') : ''}
               />
             </Field>
+            {mode === 'signup' && <ConsentFields checked={agreed} onChange={setAgreed} />}
             {error && <p className="auth-error">{error}</p>}
-            <button type="submit" className="btn primary auth-submit" disabled={busy}>
+            <button type="submit" className="btn primary auth-submit" disabled={busy || (mode === 'signup' && !agreed)}>
               {busy ? tr('Please wait...') : mode === 'signup' ? tr('Create account') : tr('Sign in')}
             </button>
           </form>

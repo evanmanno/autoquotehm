@@ -205,6 +205,8 @@ export function SettingsHub({
       <Group title={tr("Language")}>
         <div className="s-lang">
           <LangToggle />
+          <p className="s-lang-hint">{tr("Quotes and PDFs your customers receive stay in English.")}</p>
+          <p className="s-lang-hint">{tr("Translations are new. If something reads wrong, tell us and we'll fix it.")}</p>
         </div>
       </Group>
 
