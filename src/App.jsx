@@ -23,21 +23,26 @@ import {
   qty,
   seedFlags,
 } from './pricing'
-import { isConfigured, sendQuote } from './email'
+import { isConfigured, notifyPeople, sendQuote } from './email'
 import logoIcon from './assets/logo-icon.png'
 import { haptic, isNative, pickPhotos } from './lib/native'
 import { getInitialSession, onAuthChange, recordConsent, signIn, signOut, signUp } from './lib/auth'
 import { hasDataConsent } from './lib/consent'
 import { ConsentFields, ConsentGate } from './Consent'
 import { deleteCompany, fetchCompany, saveCompany, setCompanyPlan, uploadLogo } from './lib/companyStore'
-import { buildQuotePdf } from './lib/quotePdf'
+import { buildCustomerLines, buildQuotePdf, customerRows, isLineHidden } from './lib/quotePdf'
+import { canApprove as roleCanApprove } from './lib/roles'
 import {
   acceptPendingInvite,
   captureInviteFromUrl,
   countQuotesThisMonth,
   clearPendingInvite,
+  countPendingQuotes,
   fetchMyMember,
   getPendingInvite,
+  listApprovers,
+  listMembers,
+  reviewQuote,
   saveQuote,
 } from './lib/teamStore'
 import { SavedQuotes, Team } from './Team'
@@ -105,7 +110,46 @@ const emptyJob = {
   fuelCost: '',
   dumpLoads: '',
   notes: '',
+  // What the customer sees on the PDF: 'all' | 'total' | 'custom' (see quotePdf.js)
+  detail: 'all',
+  hiddenLines: [],
 }
+
+// The last "how much detail" choice (all / total) is remembered on this device
+// so a crew that always sends a single price doesn't have to set it each time.
+const DETAIL_KEY = 'pricr.detail'
+const preferredDetail = () => {
+  try {
+    const d = localStorage.getItem(DETAIL_KEY)
+    return d === 'total' || d === 'all' ? d : 'all'
+  } catch {
+    return 'all'
+  }
+}
+const rememberDetail = (d) => {
+  try {
+    if (d === 'total' || d === 'all') localStorage.setItem(DETAIL_KEY, d)
+  } catch {
+    // not saved, no problem
+  }
+}
+const blankQuoteMeta = {
+  status: 'draft',
+  createdBy: null,
+  createdByName: '',
+  approvalNote: '',
+  reviewNote: '',
+  reviewedByName: '',
+}
+const metaFromRow = (row) => ({
+  status: row.status ?? 'draft',
+  createdBy: row.createdBy ?? null,
+  createdByName: row.createdByName ?? '',
+  approvalNote: row.approvalNote ?? '',
+  reviewNote: row.reviewNote ?? '',
+  reviewedByName: row.reviewedByName ?? '',
+})
+const newJob = () => ({ ...emptyJob, detail: preferredDetail() })
 
 function loadDraft() {
   try {
@@ -118,9 +162,9 @@ function loadDraft() {
       }
     }
     const saved = JSON.parse(raw)
-    return saved ? { ...emptyJob, ...saved } : emptyJob
+    return saved ? { ...emptyJob, ...saved } : newJob()
   } catch {
-    return emptyJob
+    return newJob()
   }
 }
 
@@ -168,6 +212,9 @@ export default function App() {
   const [inviteError, setInviteError] = useState('')
   const [inviteJoined, setInviteJoined] = useState(false)
   const [monthUsed, setMonthUsed] = useState(null) // quotes created this calendar month
+  const [quoteMeta, setQuoteMeta] = useState(blankQuoteMeta) // approval info for the quote on screen
+  const [pendingCount, setPendingCount] = useState(0) // quotes waiting for an approver
+  const [approvers, setApprovers] = useState([]) // owner + managers, for "who will see this"
   useLang() // re-render the whole app when the language changes
   const topRef = useRef(null)
 
@@ -353,6 +400,38 @@ export default function App() {
   // Owner is whoever created the company; everyone else is an estimator.
   const isOwner = Boolean(company) && (company.ownerId == null || company.ownerId === session?.user?.id)
 
+  // Owner / Manager can approve quotes and send them straight away; Estimators
+  // send for approval first.
+  const myRole = isOwner ? 'owner' : me?.role || 'estimator'
+  const canApprove = roleCanApprove(myRole)
+
+  // Quotes waiting for approval (owner / manager badge on the Quotes tab).
+  useEffect(() => {
+    if (!company?.id || !canApprove) {
+      setPendingCount(0)
+      return
+    }
+    let live = true
+    countPendingQuotes(company.id)
+      .then((n) => live && setPendingCount(n))
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [company?.id, canApprove, view, quoteMeta.status])
+
+  // Who will see a quote sent for approval (shown on the "sent" screen).
+  useEffect(() => {
+    if (!company?.id || canApprove) return
+    let live = true
+    listApprovers(company.id)
+      .then((list) => live && setApprovers(list))
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [company?.id, canApprove])
+
   // "Prepared by" follows the person using the app, not the company owner.
   const preparer = {
     name: me?.displayName || (isOwner ? company?.crewMemberName : '') || '',
@@ -383,6 +462,7 @@ export default function App() {
         createdByName: preparer.name || preparer.email,
       })
       setSavedQuoteId(row.id)
+      setQuoteMeta(metaFromRow(row))
       setSaveState('saved')
     } catch (err) {
       console.error('Saving quote failed:', err)
@@ -402,6 +482,7 @@ export default function App() {
       return
     }
     setJob({ ...emptyJob, ...q.job })
+    setQuoteMeta(metaFromRow(q))
     setSavedQuoteId(q.id)
     setSaveState('saved')
     setSendState('idle')
@@ -410,19 +491,135 @@ export default function App() {
     setStep(3)
   }
 
+  const reviewerName = preparer.name || preparer.email
+
+  // Best-effort heads-up emails; the in-app list is the source of truth.
+  const emailOf = async (userId) => {
+    try {
+      const all = await listMembers(company.id)
+      return all.find((m) => m.userId === userId)?.email || ''
+    } catch {
+      return ''
+    }
+  }
+
+  // Owners and managers send straight away (approving first if the quote was
+  // waiting on them); an estimator can send once the quote is approved.
   const sendToOffice = async () => {
     setSendState('sending')
     setSendError('')
     try {
+      if (canApprove && quoteMeta.status === 'pending' && savedQuoteId) {
+        await reviewQuote(savedQuoteId, {
+          status: 'approved',
+          note: '',
+          userId: session.user.id,
+          name: reviewerName,
+        })
+        setQuoteMeta((m) => ({ ...m, status: 'approved', reviewedByName: reviewerName, reviewNote: '' }))
+        emailOf(quoteMeta.createdBy).then((to) =>
+          notifyPeople(
+            [to],
+            `Approved — ${job.customerName || 'quote'} — ${money(est.quotePrice)}`,
+            `${reviewerName} approved your quote for ${job.customerName || 'a customer'} (${money(est.quotePrice)}) and sent it on.`,
+          ),
+        )
+      }
       await sendQuote(job, est, photos.length, companyForQuote)
       setSendState('sent')
       haptic('success')
-      persistQuote('sent')
+      persistQuote(['won', 'lost'].includes(quoteMeta.status) ? undefined : 'sent')
     } catch (err) {
       setSendError(err?.text || err?.message || tr('Email failed to send.'))
       setSendState('error')
     }
   }
+
+  // Estimator: put the quote in the approvers' queue.
+  const submitForApproval = async (note) => {
+    if (!company?.id) return
+    setSendState('sending')
+    setSendError('')
+    try {
+      const row = await saveQuote({
+        id: savedQuoteId,
+        companyId: company.id,
+        job,
+        est,
+        status: 'pending',
+        approvalNote: (note || '').trim(),
+        createdByName: reviewerName,
+      })
+      setSavedQuoteId(row.id)
+      setQuoteMeta(metaFromRow(row))
+      setSaveState('saved')
+      setSendState('submitted')
+      haptic('success')
+      listApprovers(company.id)
+        .then((list) =>
+          notifyPeople(
+            list.filter((m) => m.userId !== session.user.id).map((m) => m.email),
+            `Approval needed — ${job.customerName || 'quote'} — ${money(est.quotePrice)}`,
+            `${reviewerName || 'A teammate'} sent a quote for approval.\n\nCustomer: ${job.customerName || '—'}\nQuote: ${money(est.quotePrice)}${
+              note?.trim() ? `\nNote: ${note.trim()}` : ''
+            }\n\nOpen Pricr and go to Quotes to approve it: ${window.location.origin}`,
+          ),
+        )
+        .catch(() => {})
+    } catch (err) {
+      setSendError(
+        /quote_limit_reached/.test(err?.message || '')
+          ? tr("This quote wasn't saved because you've used every quote on your plan this month. You can still send it or download the PDF.")
+          : err?.message || tr('Something went wrong. Try again.'),
+      )
+      setSendState('error')
+    }
+  }
+
+  // Owner / manager: return the quote to the estimator with a note.
+  const sendBack = async (note) => {
+    if (!savedQuoteId) return
+    setSendState('sending')
+    setSendError('')
+    try {
+      await reviewQuote(savedQuoteId, {
+        status: 'changes',
+        note: (note || '').trim(),
+        userId: session.user.id,
+        name: reviewerName,
+      })
+      setQuoteMeta((m) => ({ ...m, status: 'changes', reviewNote: (note || '').trim(), reviewedByName: reviewerName }))
+      setSendState('returned')
+      emailOf(quoteMeta.createdBy).then((to) =>
+        notifyPeople(
+          [to],
+          `Changes requested — ${job.customerName || 'quote'}`,
+          `${reviewerName} sent your quote for ${job.customerName || 'a customer'} back${
+            note?.trim() ? `:\n\n${note.trim()}` : '.'
+          }\n\nOpen Pricr and go to Quotes to update it and send it again: ${window.location.origin}`,
+        ),
+      )
+    } catch (err) {
+      setSendError(err?.message || tr('Something went wrong. Try again.'))
+      setSendState('error')
+    }
+  }
+
+  // What the customer sees on the PDF (see quotePdf.js customerRows).
+  const setDetail = (detail) => {
+    rememberDetail(detail)
+    setJob((j) => ({ ...j, detail, hiddenLines: [] }))
+  }
+  const toggleLine = (id, allIds) =>
+    setJob((j) => {
+      const hidden = new Set(allIds.filter((x) => isLineHidden(j, x)))
+      if (hidden.has(id)) hidden.delete(id)
+      else hidden.add(id)
+      const list = [...hidden]
+      const detail = list.length === 0 ? 'all' : list.length === allIds.length ? 'total' : 'custom'
+      rememberDetail(detail)
+      return { ...j, detail, hiddenLines: list }
+    })
 
   const downloadPdf = async () => {
     setPdfState('generating')
@@ -440,7 +637,8 @@ export default function App() {
     photos.forEach((p) => URL.revokeObjectURL(p.url))
     setPhotos([])
     setConceptUrl(null)
-    setJob(emptyJob)
+    setJob(newJob())
+    setQuoteMeta(blankQuoteMeta)
     setSavedQuoteId(null)
     setSaveState('idle')
     setSendState('idle')
@@ -456,7 +654,8 @@ export default function App() {
     }
     photos.forEach((p) => URL.revokeObjectURL(p.url))
     setPhotos([])
-    setJob(emptyJob)
+    setJob(newJob())
+    setQuoteMeta(blankQuoteMeta)
     setSavedQuoteId(null)
     setSaveState('idle')
     setSendState('idle')
@@ -648,6 +847,7 @@ export default function App() {
           <SavedQuotes
             companyId={company.id}
             isOwner={isOwner}
+            canApprove={canApprove}
             userId={session.user.id}
             onOpen={openSavedQuote}
           />
@@ -1173,6 +1373,15 @@ export default function App() {
             sendState={sendState}
             sendError={sendError}
             onSend={sendToOffice}
+            canApprove={canApprove}
+            userId={session.user.id}
+            quoteMeta={quoteMeta}
+            approvers={approvers}
+            onSubmitApproval={submitForApproval}
+            onSendBack={sendBack}
+            onSetDetail={setDetail}
+            onToggleLine={toggleLine}
+            onQuotes={() => setView('quotes')}
             onNew={startNew}
             onBack={() => setStep(2)}
             pdfState={pdfState}
@@ -1232,6 +1441,11 @@ export default function App() {
               <path d={path} />
             </svg>
             {tr(label)}
+            {id === 'quotes' && canApprove && pendingCount > 0 && (
+              <span className="tab-badge" aria-label={tr('{n} waiting for approval', { n: pendingCount })}>
+                {pendingCount}
+              </span>
+            )}
           </button>
         ))}
       </nav>
@@ -1304,7 +1518,24 @@ function Quote({
   pdfState,
   onDownloadPdf,
   saveState,
+  canApprove = true,
+  userId,
+  quoteMeta,
+  approvers = [],
+  onSubmitApproval,
+  onSendBack,
+  onSetDetail,
+  onToggleLine,
+  onQuotes,
 }) {
+  const [note, setNote] = useState('')
+  const [showNote, setShowNote] = useState(false)
+  const [backOpen, setBackOpen] = useState(false)
+  const [backNote, setBackNote] = useState('')
+  const status = quoteMeta?.status || 'draft'
+  const needsApproval = !canApprove && !['approved', 'sent', 'won', 'lost'].includes(status)
+  const waiting = !canApprove && status === 'pending'
+  const approving = canApprove && status === 'pending'
   const officeName = company?.contactName?.trim() || 'the office'
   const officeEmail = company?.contactEmail?.trim() || '—'
   const businessName = company?.businessName?.trim() || 'your business'
@@ -1328,6 +1559,50 @@ function Quote({
         </p>
         <button type="button" className="btn primary" onClick={onNew}>
           {tr("Start new estimate")}
+        </button>
+      </section>
+    )
+  }
+
+  if (sendState === 'submitted') {
+    const names = approvers.filter((a) => a.userId !== userId).map((a) => a.displayName || a.email)
+    return (
+      <section className="card success">
+        <div className="success-mark" aria-hidden="true">
+          ✓
+        </div>
+        <h2>{tr('Sent for approval')}</h2>
+        <p>
+          {names.length
+            ? tr('{names} will take a look. You will see it under Quotes once it is approved.', {
+                names: names.join(', '),
+              })
+            : tr('It is in the approval list now. You will see it under Quotes once it is approved.')}
+        </p>
+        <button type="button" className="btn primary" onClick={onNew}>
+          {tr("Start new estimate")}
+        </button>
+        <button type="button" className="link-plain" onClick={onQuotes}>
+          {tr('Back to quotes')}
+        </button>
+      </section>
+    )
+  }
+
+  if (sendState === 'returned') {
+    return (
+      <section className="card success">
+        <div className="success-mark" aria-hidden="true">
+          ✓
+        </div>
+        <h2>{tr('Sent back')}</h2>
+        <p>
+          {tr('{name} will see your note and can send it for approval again.', {
+            name: quoteMeta?.createdByName || tr('The estimator'),
+          })}
+        </p>
+        <button type="button" className="btn primary" onClick={onQuotes}>
+          {tr('Back to quotes')}
         </button>
       </section>
     )
@@ -1486,6 +1761,8 @@ function Quote({
         )}
       </section>
 
+      <CustomerView est={est} job={job} onDetail={onSetDetail} onToggleLine={onToggleLine} />
+
       {(job.equipment || job.notes) && (
         <section className="card">
           <header className="card-head">
@@ -1516,6 +1793,33 @@ function Quote({
 
       {sendState === 'error' && <p className="banner error">{sendError}</p>}
 
+      {status === 'approved' && !canApprove && (
+        <p className="banner ok">
+          {quoteMeta?.reviewedByName
+            ? tr('Approved by {name}. You can send it now.', { name: quoteMeta.reviewedByName })
+            : tr('Approved. You can send it now.')}
+        </p>
+      )}
+      {status === 'changes' && !canApprove && (
+        <p className="banner wait">
+          <strong>
+            {quoteMeta?.reviewedByName
+              ? tr('{name} sent this back:', { name: quoteMeta.reviewedByName })
+              : tr('Sent back for changes:')}
+          </strong>{' '}
+          {quoteMeta?.reviewNote || tr('No note left.')}
+        </p>
+      )}
+      {waiting && (
+        <p className="banner wait">{tr('Waiting for approval. You will see it here once it is approved.')}</p>
+      )}
+      {approving && (
+        <p className="banner wait">
+          <strong>{tr('{name} is waiting for your approval.', { name: quoteMeta?.createdByName || tr('A teammate') })}</strong>
+          {quoteMeta?.approvalNote ? ` “${quoteMeta.approvalNote}”` : ''}
+        </p>
+      )}
+
       {saveState === 'saved' && (
         <p className="saved-note">{tr("Saved to your company's quotes")}</p>
       )}
@@ -1528,6 +1832,49 @@ function Quote({
         <p className="banner error">
           {tr("This quote wasn't saved because you've used every quote on your plan this month. You can still send it or download the PDF.")}
         </p>
+      )}
+
+      {needsApproval && !waiting && (
+        <section className="card approval-note">
+          {showNote ? (
+            <label className="field">
+              <span className="label">{tr('Note for the approver (optional)')}</span>
+              <textarea
+                rows={2}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder={tr('Anything they should know before approving…')}
+              />
+            </label>
+          ) : (
+            <button type="button" className="link-plain" onClick={() => setShowNote(true)}>
+              {tr('Add a note for the approver')}
+            </button>
+          )}
+        </section>
+      )}
+
+      {approving && backOpen && (
+        <section className="card approval-note">
+          <label className="field">
+            <span className="label">{tr('What should change?')}</span>
+            <textarea
+              rows={3}
+              value={backNote}
+              onChange={(e) => setBackNote(e.target.value)}
+              placeholder={tr('e.g. Add the second pallet of stone, or lower the labor hours')}
+              autoFocus
+            />
+          </label>
+          <button
+            type="button"
+            className="btn primary"
+            onClick={() => onSendBack(backNote)}
+            disabled={sendState === 'sending'}
+          >
+            {tr('Send back with this note')}
+          </button>
+        </section>
       )}
 
       <footer className="footer footer--stacked">
@@ -1547,19 +1894,84 @@ function Quote({
         <button
           type="button"
           className="btn primary"
-          onClick={onSend}
-          disabled={sendState === 'sending'}
+          onClick={needsApproval ? () => onSubmitApproval(note) : onSend}
+          disabled={sendState === 'sending' || waiting}
         >
           {sendState === 'sending'
             ? tr('Sending…')
             : sendState === 'error'
               ? tr('Try again')
-              : company?.contactName
-                ? tr('Send to {name}', { name: company.contactName })
-                : tr('Send quote')}
+              : waiting
+                ? tr('Waiting for approval')
+                : needsApproval
+                  ? tr('Send for approval')
+                  : approving
+                    ? tr('Approve & send')
+                    : company?.contactName
+                      ? tr('Send to {name}', { name: company.contactName })
+                      : tr('Send quote')}
         </button>
+        {approving && !backOpen && (
+          <button type="button" className="link-plain" onClick={() => setBackOpen(true)}>
+            {tr('Send back with a note')}
+          </button>
+        )}
       </footer>
     </>
+  )
+}
+
+// "What your customer sees": a checklist of the lines that appear on the PDF.
+// Unchecked lines are folded into the others so the total never changes.
+function CustomerView({ est, job, onDetail, onToggleLine }) {
+  const lines = Object.values(buildCustomerLines(est))
+    .flat()
+    .filter((l) => !l.tbd)
+  if (lines.length === 0) return null
+  const ids = lines.map((l) => l.id)
+  const shownAmount = new Map(customerRows(est, job).map((r) => [r.id, r.amount]))
+  const hiddenCount = lines.filter((l) => isLineHidden(job, l.id)).length
+  const noneShown = hiddenCount === lines.length
+  return (
+    <section className="card customer-view">
+      <header className="card-head">
+        <h2>{tr('What your customer sees')}</h2>
+        <p>{tr('Check the lines to show on the PDF. Anything you uncheck is folded into the other lines, so the total never changes.')}</p>
+      </header>
+      <div className="cv-presets">
+        <button type="button" className={hiddenCount === 0 ? 'on' : ''} onClick={() => onDetail('all')}>
+          {tr('Show every line')}
+        </button>
+        <button type="button" className={noneShown ? 'on' : ''} onClick={() => onDetail('total')}>
+          {tr('Just the total')}
+        </button>
+      </div>
+      <ul className="cv-list">
+        {lines.map((l) => {
+          const hidden = isLineHidden(job, l.id)
+          return (
+            <li key={l.id}>
+              <label className="cv-row">
+                <input type="checkbox" checked={!hidden} onChange={() => onToggleLine(l.id, ids)} />
+                <span className="cv-name">{l.name}</span>
+                <span className={`cv-amt ${hidden ? 'muted' : ''}`}>
+                  {hidden
+                    ? noneShown
+                      ? tr('In the total')
+                      : tr('In other lines')
+                    : money(shownAmount.get(l.id) ?? l.amount)}
+                </span>
+              </label>
+            </li>
+          )
+        })}
+      </ul>
+      {noneShown && <p className="cv-note">{tr('The PDF will show one line for the whole job, then the total.')}</p>}
+      <div className="cv-total">
+        <span>{tr('Customer total')}</span>
+        <strong>{money(est.quotePrice)}</strong>
+      </div>
+    </section>
   )
 }
 

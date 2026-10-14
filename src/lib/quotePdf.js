@@ -54,6 +54,7 @@ export function buildCustomerLines(est) {
     // hundreds of thousands of square feet at a fraction of a cent.
     if (!item.tbd && item.visits > 1) {
       groups.materials.push({
+        id: `s:${item.id}`,
         name: item.baseName,
         desc: `${qty(item.baseQuantity)} ${item.unitLabel ?? ''} per visit${
           item.depthLabel ? `, ${item.depthLabel} snow` : ''
@@ -65,6 +66,7 @@ export function buildCustomerLines(est) {
       return
     }
     groups.materials.push({
+      id: `s:${item.id}`,
       name: item.baseName ?? item.name,
       desc: item.tbd
         ? 'To be priced separately'
@@ -77,6 +79,7 @@ export function buildCustomerLines(est) {
   })
   ;(est.materialItems ?? []).forEach((item) => {
     groups.materials.push({
+      id: `m:${item.id}`,
       name: item.name,
       desc: item.note || 'Material',
       qtyText: `${qty(item.quantity)} ${item.unitLabel ?? ''}`.trim(),
@@ -87,6 +90,7 @@ export function buildCustomerLines(est) {
   if (est.laborCost > 0) {
     const hrs = est.laborHours * est.crewMembers
     groups.labor.push({
+      id: 'labor',
       name: 'Labor',
       desc: `${qty(est.crewMembers)} crew × ${qty(est.laborHours)} hrs`,
       qtyText: `${qty(hrs)} hrs`,
@@ -96,6 +100,7 @@ export function buildCustomerLines(est) {
   }
   est.equipmentItems.forEach((item) => {
     groups.equipment.push({
+      id: `e:${item.id}`,
       name: item.name,
       desc: 'Equipment',
       qtyText: `${qty(item.quantity)} day${item.quantity === 1 ? '' : 's'}`,
@@ -105,6 +110,7 @@ export function buildCustomerLines(est) {
   })
   if (est.travelCost > 0) {
     groups.other.push({
+      id: 'travel',
       name: 'Fuel & travel charge',
       desc: `${qty(est.driveMiles)} mi total × ${money(est.mileageRate)}/mi`,
       qtyText: '1',
@@ -113,10 +119,11 @@ export function buildCustomerLines(est) {
     })
   }
   if (est.fuelCost > 0) {
-    groups.other.push({ name: 'Equipment fuel', desc: '', qtyText: '1', quantity: 1, cost: est.fuelCost })
+    groups.other.push({ id: 'fuel', name: 'Equipment fuel', desc: '', qtyText: '1', quantity: 1, cost: est.fuelCost })
   }
   if (est.disposalCost > 0) {
     groups.other.push({
+      id: 'disposal',
       name: 'Disposal / dump fees',
       desc: `${qty(est.dumpLoads)} load${est.dumpLoads === 1 ? '' : 's'}`,
       qtyText: `${qty(est.dumpLoads)} load${est.dumpLoads === 1 ? '' : 's'}`,
@@ -141,6 +148,59 @@ export function buildCustomerLines(est) {
     l.unitPrice = !l.tbd && l.quantity > 0 ? l.amount / l.quantity : 0
   })
   return groups
+}
+
+// ---------------------------------------------------------------------------
+// What the customer sees. job.detail is 'all' (every line, the default),
+// 'total' (one price for the whole job) or 'custom' (job.hiddenLines lists the
+// lines the estimator unchecked). Hidden lines are never dropped: their price
+// is folded into the lines that stay, so the total on the quote never changes.
+// Lines still "to be priced separately" are always shown.
+// ---------------------------------------------------------------------------
+export const isLineHidden = (job, id) =>
+  job?.detail === 'total' || (job?.detail === 'custom' && (job.hiddenLines || []).includes(id))
+
+const cents = (n) => Math.round(n * 100) / 100
+
+export function customerRows(est, job) {
+  const all = Object.values(buildCustomerLines(est)).flat()
+  const hidden = all.filter((l) => !l.tbd && isLineHidden(job, l.id))
+  if (!hidden.length) return all
+  const visible = all.filter((l) => !hidden.includes(l))
+  const visiblePriced = visible.filter((l) => !l.tbd)
+  const folded = cents(hidden.reduce((s, l) => s + l.amount, 0))
+
+  if (!visiblePriced.length) {
+    const names = [
+      ...est.lineItems.filter((i) => !i.tbd).map((i) => i.baseName ?? i.name),
+      ...(est.materialItems ?? []).map((i) => i.name),
+    ]
+    return [
+      {
+        id: 'summary',
+        name: 'Complete job as described',
+        desc: names.join(', '),
+        qtyText: '1',
+        quantity: 1,
+        amount: folded,
+        unitPrice: folded,
+      },
+      ...visible.filter((l) => l.tbd),
+    ]
+  }
+
+  const rows = visible.map((l) => ({ ...l }))
+  const priced = rows.filter((l) => !l.tbd)
+  const base = priced.reduce((s, l) => s + l.amount, 0)
+  priced.forEach((l) => {
+    l.amount = cents(l.amount + (base > 0 ? folded * (l.amount / base) : folded / priced.length))
+  })
+  const drift = cents(est.quotePrice - priced.reduce((s, l) => s + l.amount, 0))
+  if (drift !== 0) priced.reduce((a, b) => (b.amount > a.amount ? b : a)).amount += drift
+  priced.forEach((l) => {
+    l.unitPrice = l.quantity > 0 ? l.amount / l.quantity : 0
+  })
+  return rows
 }
 
 const DEFAULT_GREEN = '#5c9a17'
@@ -270,7 +330,7 @@ export async function buildQuotePdfDoc(job, est, company, opts = {}) {
   doc.text('Quote for Services', margin, y)
   y += 10
 
-  const lines = Object.values(buildCustomerLines(est)).flat()
+  const lines = customerRows(est, job)
   const body = lines.map((l) => [
     l.name,
     l.desc || '',

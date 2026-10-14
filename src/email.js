@@ -46,3 +46,36 @@ export async function sendQuote(job, est, photoCount, company) {
     { publicKey: PUBLIC_KEY },
   )
 }
+
+// Short heads-up email through the same EmailJS template (approval requests
+// and decisions). Never throws: the in-app list is the source of truth, this
+// is just a nudge, so a failure must not block the quote.
+export async function notifyPeople(recipients, subject, message) {
+  if (!isConfigured) return
+  const list = [...new Set((recipients || []).map((r) => (r || '').trim()).filter(Boolean))]
+  await Promise.all(
+    list.map((to) =>
+      emailjs
+        .send(
+          SERVICE_ID,
+          TEMPLATE_ID,
+          {
+            to_email: to,
+            subject,
+            customer_name: '—',
+            customer_phone: '—',
+            property_address: '—',
+            crew: '—',
+            prepared_by: '—',
+            quote_price: '—',
+            total_cost: '—',
+            profit_amount: '—',
+            message,
+            reply_to: to,
+          },
+          { publicKey: PUBLIC_KEY },
+        )
+        .catch(() => {}),
+    ),
+  )
+}

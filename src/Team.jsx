@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { money } from './pricing'
 import { getPlan, SHOW_PLANS } from './lib/plans'
 import { getLocale, tr } from './lib/i18n'
@@ -12,9 +12,11 @@ import {
   listQuotes,
   removeMember,
   revokeInvite,
+  setMemberRole,
   setMyProfile,
   setQuoteStatus,
 } from './lib/teamStore'
+import { INVITE_ROLES, roleLabelKey } from './lib/roles'
 
 const errText = (err, fallback) => err?.message || fallback
 
@@ -29,9 +31,33 @@ const fmtDate = (iso) => {
 // reopen it, mark it sent / won / lost, or (owner or author) delete it.
 // ---------------------------------------------------------------------------
 
-const FILTERS = ['all', ...QUOTE_STATUSES]
+const STATUS_LABEL = {
+  draft: 'Draft',
+  pending: 'Needs approval',
+  changes: 'Changes requested',
+  approved: 'Approved',
+  sent: 'Sent',
+  won: 'Won',
+  lost: 'Lost',
+}
 
-export function SavedQuotes({ companyId, isOwner, userId, onOpen }) {
+// "Draft" also lists quotes that were sent back for changes.
+const FILTERS = ['all', 'pending', 'approved', 'sent', 'won', 'lost', 'draft']
+const inFilter = (q, f) =>
+  f === 'all' || q.status === f || (f === 'draft' && q.status === 'changes')
+
+// Owners and managers can set any status; an estimator can only move a quote
+// along once it has been approved or sent.
+const statusOptions = (q, canApprove) => {
+  if (canApprove) return QUOTE_STATUSES
+  const ok = new Set([q.status])
+  if (q.status === 'approved') ok.add('sent')
+  if (['sent', 'won', 'lost'].includes(q.status)) ['sent', 'won', 'lost'].forEach((s) => ok.add(s))
+  return QUOTE_STATUSES.filter((s) => ok.has(s))
+}
+
+export function SavedQuotes({ companyId, isOwner, canApprove = false, userId, onOpen }) {
+  const firstLoad = useRef(true)
   const [quotes, setQuotes] = useState(null)
   const [error, setError] = useState('')
   const [filter, setFilter] = useState('all')
@@ -40,12 +66,16 @@ export function SavedQuotes({ companyId, isOwner, userId, onOpen }) {
   const load = useCallback(async () => {
     try {
       setError('')
-      setQuotes(await listQuotes(companyId))
+      const rows = await listQuotes(companyId)
+      setQuotes(rows)
+      // Approvers land on what needs them first.
+      if (firstLoad.current && canApprove && rows.some((q) => q.status === 'pending')) setFilter('pending')
+      firstLoad.current = false
     } catch (err) {
       setError(errText(err, tr('Could not load saved quotes.')))
       setQuotes([])
     }
-  }, [companyId])
+  }, [companyId, canApprove])
 
   useEffect(() => {
     load()
@@ -77,14 +107,18 @@ export function SavedQuotes({ companyId, isOwner, userId, onOpen }) {
     return { sent: sum('sent'), won: sum('won'), lost: sum('lost') }
   }, [quotes])
 
+  const pendingCount = (quotes ?? []).filter((q) => q.status === 'pending').length
+
   const shown = (quotes ?? []).filter(
     (q) =>
-      (filter === 'all' || q.status === filter) &&
+      inFilter(q, filter) &&
       (!query.trim() ||
         `${q.customerName} ${q.address} ${q.createdByName}`
           .toLowerCase()
           .includes(query.trim().toLowerCase())),
   )
+  // Approvers see what is waiting on them first.
+  if (canApprove) shown.sort((a, b) => (b.status === 'pending') - (a.status === 'pending'))
 
   return (
     <section className="card">
@@ -117,7 +151,7 @@ export function SavedQuotes({ companyId, isOwner, userId, onOpen }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <div className="segmented small">
+        <div className="segmented small wrap">
           {FILTERS.map((f) => (
             <button
               key={f}
@@ -125,7 +159,8 @@ export function SavedQuotes({ companyId, isOwner, userId, onOpen }) {
               className={filter === f ? 'on' : ''}
               onClick={() => setFilter(f)}
             >
-              {tr(f === 'all' ? 'All' : f[0].toUpperCase() + f.slice(1))}
+              {tr(f === 'all' ? 'All' : STATUS_LABEL[f])}
+              {f === 'pending' && pendingCount > 0 ? ` (${pendingCount})` : ''}
             </button>
           ))}
         </div>
@@ -157,6 +192,15 @@ export function SavedQuotes({ companyId, isOwner, userId, onOpen }) {
                 {fmtDate(q.createdAt)}
                 {q.createdByName ? ` · ${q.createdByName}` : ''}
               </span>
+              {q.status === 'pending' && canApprove && (
+                <span className="tq-flag">{tr('Tap to review and approve')}</span>
+              )}
+              {q.status === 'changes' && q.reviewNote && (
+                <span className="tq-flag warn">
+                  {q.reviewedByName ? `${q.reviewedByName}: ` : ''}
+                  {q.reviewNote}
+                </span>
+              )}
             </button>
             <div className="tq-actions">
               <select
@@ -165,9 +209,9 @@ export function SavedQuotes({ companyId, isOwner, userId, onOpen }) {
                 className={`tq-status tq-${q.status}`}
                 aria-label={tr("Quote status")}
               >
-                {QUOTE_STATUSES.map((s) => (
+                {statusOptions(q, canApprove).map((s) => (
                   <option key={s} value={s}>
-                    {tr(s[0].toUpperCase() + s.slice(1))}
+                    {tr(STATUS_LABEL[s])}
                   </option>
                 ))}
               </select>
@@ -201,6 +245,7 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
 
   const [inviteName, setInviteName] = useState('')
   const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState('estimator')
   const [inviting, setInviting] = useState(false)
   const [freshLink, setFreshLink] = useState(null) // { email, url }
   const [copied, setCopied] = useState('')
@@ -281,7 +326,7 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
     setInviting(true)
     setError('')
     try {
-      const inv = await createInvite(company.id, email, inviteName)
+      const inv = await createInvite(company.id, email, inviteName, inviteRole)
       setFreshLink({ email: inv.email, url: inviteLink(inv.token) })
       setInviteEmail('')
       setInviteName('')
@@ -300,6 +345,16 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
       load()
     } catch (err) {
       setError(errText(err, tr('Could not cancel that invite.')))
+    }
+  }
+
+  const changeRole = async (m, role) => {
+    setMembers((all) => all.map((x) => (x.userId === m.userId ? { ...x, role } : x)))
+    try {
+      await setMemberRole(company.id, m.userId, role)
+    } catch (err) {
+      setError(errText(err, tr('Could not change that role.')))
+      load()
     }
   }
 
@@ -334,13 +389,27 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
               <div>
                 <strong>{m.displayName || m.email || tr('Teammate')}</strong>
                 {m.userId === userId && <span className="pill you">{tr("You")}</span>}
-                <span className={`pill ${m.role}`}>{m.role === 'owner' ? tr('Owner') : tr('Estimator')}</span>
+                <span className={`pill ${m.role}`}>{tr(roleLabelKey(m.role))}</span>
                 <small>{m.email}</small>
               </div>
               {isOwner && m.role !== 'owner' && (
-                <button type="button" className="tq-link danger" onClick={() => remove(m)}>
-                  {tr("Remove")}
-                </button>
+                <span className="tq-actions team-actions">
+                  <select
+                    value={m.role}
+                    onChange={(e) => changeRole(m, e.target.value)}
+                    className="tq-status"
+                    aria-label={tr('Role')}
+                  >
+                    {INVITE_ROLES.map((r) => (
+                      <option key={r} value={r}>
+                        {tr(roleLabelKey(r))}
+                      </option>
+                    ))}
+                  </select>
+                  <button type="button" className="tq-link danger" onClick={() => remove(m)}>
+                    {tr("Remove")}
+                  </button>
+                </span>
               )}
               {!isOwner && m.userId === userId && (
                 <button type="button" className="tq-link danger" onClick={() => remove(m)}>
@@ -350,6 +419,9 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
             </li>
           ))}
         </ul>
+        <p className="subgroup-hint team-roles-hint">
+          {tr('Owner and Managers can approve quotes and send them. Estimators send their quotes for approval first.')}
+        </p>
       </section>
 
       <section className="card">
@@ -382,7 +454,7 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
       {isOwner && (
         <section className="card">
           <header className="card-head">
-            <h2>{tr("Invite an estimator")}</h2>
+            <h2>{tr('Invite a teammate')}</h2>
             <p>
               {tr("They sign up with the email you enter here. You'll get a link to text or email them. It works once and expires in 14 days.")}
             </p>
@@ -410,6 +482,21 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
                 inputMode="email"
                 autoCapitalize="none"
               />
+            </label>
+            <label className="field">
+              <span className="label">{tr('Role')}</span>
+              <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value)} className="unit-select">
+                {INVITE_ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {tr(roleLabelKey(r))}
+                  </option>
+                ))}
+              </select>
+              <small className="field-hint">
+                {inviteRole === 'manager'
+                  ? tr('Can approve quotes and send them without approval.')
+                  : tr('Builds quotes and sends them for approval.')}
+              </small>
             </label>
             <div className="team-save">
               <button type="submit" className="btn primary" disabled={inviting || !inviteEmail.trim()}>
@@ -444,6 +531,7 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
                   <li key={inv.id} className="team-item">
                     <div>
                       <strong>{inv.displayName || inv.email}</strong>
+                      <span className={`pill ${inv.role}`}>{tr(roleLabelKey(inv.role))}</span>
                       <small>
                         {inv.email} · {tr('expires')} {fmtDate(inv.expiresAt)}
                       </small>

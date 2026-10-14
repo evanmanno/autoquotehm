@@ -101,6 +101,22 @@ export async function removeMember(companyId, userId) {
   if (error) throw error
 }
 
+// Owner only: switches a teammate between 'manager' and 'estimator'.
+export async function setMemberRole(companyId, userId, role) {
+  const { error } = await supabase.rpc('set_member_role', {
+    p_company: companyId,
+    p_user: userId,
+    p_role: role,
+  })
+  if (error) throw error
+}
+
+// The people who can approve quotes (owner + managers), for notifications.
+export async function listApprovers(companyId) {
+  const all = await listMembers(companyId)
+  return all.filter((m) => m.role === 'owner' || m.role === 'manager')
+}
+
 export async function setMyProfile(displayName, phone) {
   const { error } = await supabase.rpc('set_my_profile', {
     p_name: displayName,
@@ -113,6 +129,7 @@ const toInvite = (row) => ({
   id: row.id,
   email: row.email,
   displayName: row.display_name ?? '',
+  role: row.role ?? 'estimator',
   token: row.token,
   createdAt: row.created_at,
   expiresAt: row.expires_at,
@@ -130,13 +147,14 @@ export async function listInvites(companyId) {
   return (data ?? []).map(toInvite)
 }
 
-export async function createInvite(companyId, email, displayName) {
+export async function createInvite(companyId, email, displayName, role = 'estimator') {
   const { data, error } = await supabase
     .from('invites')
     .insert({
       company_id: companyId,
       email: email.trim().toLowerCase(),
       display_name: (displayName || '').trim(),
+      role,
     })
     .select()
     .single()
@@ -153,7 +171,8 @@ export async function revokeInvite(id) {
 // Saved quotes
 // ---------------------------------------------------------------------------
 
-export const QUOTE_STATUSES = ['draft', 'sent', 'won', 'lost']
+// draft -> (pending -> approved | changes) -> sent -> won | lost
+export const QUOTE_STATUSES = ['draft', 'pending', 'changes', 'approved', 'sent', 'won', 'lost']
 
 const toQuote = (row) => ({
   id: row.id,
@@ -165,6 +184,10 @@ const toQuote = (row) => ({
   status: row.status ?? 'draft',
   createdBy: row.created_by,
   createdByName: row.created_by_name ?? '',
+  approvalNote: row.approval_note ?? '',
+  reviewNote: row.review_note ?? '',
+  reviewedByName: row.reviewed_by_name ?? '',
+  reviewedAt: row.reviewed_at ?? null,
   createdAt: row.created_at,
   updatedAt: row.updated_at ?? row.created_at,
   job: row.job ?? null,
@@ -172,7 +195,7 @@ const toQuote = (row) => ({
 
 // Inserts a quote, or updates it when `id` is given. On update the status is
 // only touched when one is passed, so reopening a "won" quote never resets it.
-export async function saveQuote({ id, companyId, job, est, status, createdByName }) {
+export async function saveQuote({ id, companyId, job, est, status, createdByName, approvalNote }) {
   const fields = {
     customer_name: job.customerName || '',
     customer_phone: job.phone || '',
@@ -190,6 +213,7 @@ export async function saveQuote({ id, companyId, job, est, status, createdByName
       crewMembers: est.crewMembers,
     },
     ...(status ? { status } : {}),
+    ...(approvalNote !== undefined ? { approval_note: approvalNote } : {}),
   }
 
   if (id) {
@@ -231,6 +255,32 @@ export async function listQuotes(companyId) {
 export async function setQuoteStatus(id, status) {
   const { error } = await supabase.from('quotes').update({ status }).eq('id', id)
   if (error) throw error
+}
+
+// An owner or manager approves a quote or sends it back with a note.
+export async function reviewQuote(id, { status, note = '', userId, name }) {
+  const { error } = await supabase
+    .from('quotes')
+    .update({
+      status,
+      review_note: note,
+      reviewed_by: userId,
+      reviewed_by_name: name || '',
+      reviewed_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+  if (error) throw error
+}
+
+// How many quotes are waiting for an approver.
+export async function countPendingQuotes(companyId) {
+  const { count, error } = await supabase
+    .from('quotes')
+    .select('id', { count: 'exact', head: true })
+    .eq('company_id', companyId)
+    .eq('status', 'pending')
+  if (error) throw error
+  return count ?? 0
 }
 
 export async function deleteQuote(id) {

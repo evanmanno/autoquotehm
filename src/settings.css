@@ -438,3 +438,117 @@
 .consent-check input { margin-top: 3px; width: 18px; height: 18px; flex: none; accent-color: var(--accent-hi); }
 .consent-form { max-width: 400px; }
 .consent-hero h1 { margin-bottom: 16px; }
+
+/* ---------- Approvals + customer view ---------- */
+.banner.ok {
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-line);
+  color: var(--ok-text);
+}
+.banner.wait {
+  background: transparent;
+  border: 1px solid var(--warn-line);
+  color: var(--warn-text);
+}
+.banner.wait strong { font-weight: 700; }
+
+.tabbar button { position: relative; }
+.tab-badge {
+  position: absolute;
+  top: 1px;
+  left: calc(50% + 6px);
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #d9482f;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 17px;
+  text-align: center;
+}
+@media (min-width: 1000px) {
+  .tab-badge { position: static; margin-left: auto; }
+}
+
+.segmented.wrap { flex-wrap: wrap; }
+.segmented.wrap button { flex: 1 1 auto; white-space: nowrap; }
+
+.tq-status.tq-pending {
+  color: var(--warn-text);
+  border-color: var(--warn-line);
+}
+.tq-status.tq-changes {
+  color: var(--danger-text);
+  border-color: var(--danger-line);
+}
+.tq-status.tq-approved {
+  color: var(--accent-hi);
+  border-color: var(--accent-line);
+}
+.tq-flag {
+  display: block;
+  margin-top: 4px;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--warn-text);
+}
+.tq-flag.warn { color: var(--danger-text); font-weight: 500; }
+
+.team-actions { padding: 0; }
+.team-roles-hint { margin: 12px 2px 0; }
+.pill.manager { color: var(--warn-text); border-color: var(--warn-line); }
+.field-hint { display: block; margin-top: 6px; font-size: 12.5px; color: var(--muted); }
+.approval-note { padding-top: 12px; padding-bottom: 12px; }
+.approval-note .btn { width: 100%; margin-top: 10px; }
+
+.customer-view .cv-presets {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.customer-view .cv-presets button {
+  flex: 1;
+  padding: 10px 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+}
+.customer-view .cv-presets button.on {
+  background: var(--accent-dim);
+  border-color: var(--accent-line);
+  color: var(--accent-hi);
+}
+.cv-list { list-style: none; margin: 0; padding: 0; }
+.cv-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 2px;
+  border-top: 1px solid var(--line);
+  cursor: pointer;
+}
+.cv-list li:first-child .cv-row { border-top: 0; }
+.cv-row input { width: 20px; height: 20px; flex: none; accent-color: var(--accent-hi); }
+.cv-name { flex: 1; min-width: 0; font-size: 14.5px; }
+.cv-amt { font-weight: 650; font-variant-numeric: tabular-nums; }
+.cv-amt.muted { font-weight: 500; font-size: 12.5px; color: var(--muted); }
+.cv-note { margin: 10px 0 0; font-size: 12.5px; color: var(--muted); }
+.cv-total {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-strong, var(--line));
+}
+.cv-total strong { color: var(--accent-hi); }
+
+/* Team rows: let the role picker + Remove wrap under the name on narrow screens. */
+.team-item { flex-wrap: wrap; min-width: 0; }
+.team-item > div { flex: 1 1 150px; min-width: 0; }
+.team-item .tq-actions { flex: 0 0 auto; }
