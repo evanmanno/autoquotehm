@@ -45,6 +45,7 @@ import LangToggle from './LangToggle'
 import { SHOW_PLANS, getPlan } from './lib/plans'
 import { tr, useLang } from './lib/i18n'
 import { ConceptCard } from './Concept'
+import AddressInput from './AddressInput'
 import './team.css'
 import './settings.css'
 
@@ -723,11 +724,12 @@ export default function App() {
               />
             </Field>
             <Field label={tr("Property address")} required>
-              <textarea
-                value={job.address}
-                onChange={(e) => set('address')(e.target.value)}
-                placeholder={tr("12 Elm St, Springfield, MA")}
+              <AddressInput
+                multiline
                 rows={3}
+                value={job.address}
+                onChange={set('address')}
+                placeholder={tr("12 Elm St, Springfield, MA")}
               />
             </Field>
           </Section>
@@ -2175,9 +2177,9 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                 />
               </Field>
               <Field label={tr("Business address")}>
-                <input
+                <AddressInput
                   value={form.shopAddress}
-                  onChange={(e) => setField('shopAddress')(e.target.value)}
+                  onChange={setField('shopAddress')}
                   placeholder="142 Depot St, Littleton MA"
                 />
               </Field>

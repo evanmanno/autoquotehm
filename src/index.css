@@ -1575,3 +1575,51 @@ textarea::placeholder {
   font-size: 20px;
   min-width: 56px;
 }
+
+/* ---------- address autocomplete ---------- */
+.addr-wrap {
+  position: relative;
+}
+.addr-list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+.addr-list button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  text-align: left;
+}
+.addr-list button:hover,
+.addr-list button.on {
+  background: var(--accent-dim);
+}
+.addr-list strong {
+  font-size: 14.5px;
+}
+.addr-list span {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.addr-attrib {
+  padding: 4px 12px 6px;
+  font-size: 10.5px;
+  color: var(--text-3);
+  text-align: right;
+}
