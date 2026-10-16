@@ -4,6 +4,7 @@ import { getTheme, setTheme } from './lib/theme'
 import LangToggle from './LangToggle'
 import { tr } from './lib/i18n'
 import { SHOW_PLANS } from './lib/plans'
+import { changePassword } from './lib/auth'
 
 // Small stroke icons (24x24 grid) so the settings list reads like an app.
 const ICONS = {
@@ -20,6 +21,7 @@ const ICONS = {
   cube: 'M21 8 12 3 3 8v8l9 5 9-5zM3 8l9 5 9-5M12 13v8',
   doc: 'M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h8',
   percent: 'M19 5 5 19M6.5 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM17.5 20a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z',
+  lock: 'M6 11h12v10H6zM8 11V7a4 4 0 0 1 8 0v4',
   chevron: 'M9 6l6 6-6 6',
 }
 
@@ -84,15 +86,9 @@ export function SettingsHub({
   email,
   memberCount,
   onEdit,
-  plan,
-  used,
-  onOpenPlan,
   onOpenTeam,
-  onSignOut,
-  onDeleteAll,
+  onOpenGeneral,
 }) {
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  const [theme, setThemeState] = useState(getTheme)
   const name = me?.displayName || company.crewMemberName || email || tr('You')
   const initial = (name || '?').trim().charAt(0).toUpperCase()
   const materialCount = (company.materials ?? []).length
@@ -179,6 +175,126 @@ export function SettingsHub({
           }
           onClick={onOpenTeam}
         />
+      </Group>
+
+      <Group title={tr("Account")}>
+        <Row
+          icon="user"
+          title={tr("General settings")}
+          sub={tr("Password, language, appearance and sign out")}
+          onClick={onOpenGeneral}
+        />
+      </Group>
+
+      <p className="saved-note">Pricr</p>
+    </div>
+  )
+}
+
+// Change-password form: the current password is asked for, then the new one twice.
+function ChangePassword({ email }) {
+  const [open, setOpen] = useState(false)
+  const [current, setCurrent] = useState('')
+  const [next, setNext] = useState('')
+  const [again, setAgain] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [done, setDone] = useState(false)
+
+  const reset = () => {
+    setCurrent('')
+    setNext('')
+    setAgain('')
+    setError('')
+  }
+
+  const submit = async (e) => {
+    e.preventDefault()
+    if (busy) return
+    setError('')
+    if (next.length < 6) return setError(tr('Use at least 6 characters.'))
+    if (next !== again) return setError(tr("The new passwords don't match."))
+    if (next === current) return setError(tr('Pick a different password than your current one.'))
+    setBusy(true)
+    try {
+      await changePassword(email, current, next)
+      reset()
+      setOpen(false)
+      setDone(true)
+    } catch (err) {
+      setError(
+        err?.code === 'wrong-current'
+          ? tr("The current password isn't right.")
+          : err?.message || tr('Something went wrong. Try again.'),
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!open) {
+    return (
+      <>
+        <Row
+          icon="lock"
+          title={tr('Change password')}
+          sub={done ? tr('Password updated.') : tr('Choose a new password for this account')}
+          onClick={() => {
+            setDone(false)
+            setOpen(true)
+          }}
+        />
+      </>
+    )
+  }
+
+  return (
+    <form className="s-password" onSubmit={submit}>
+      <label className="field">
+        <span className="label">{tr('Current password')}</span>
+        <input type="password" required autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />
+      </label>
+      <label className="field">
+        <span className="label">{tr('New password')}</span>
+        <input type="password" required minLength={6} autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} placeholder={tr('At least 6 characters')} />
+      </label>
+      <label className="field">
+        <span className="label">{tr('Confirm new password')}</span>
+        <input type="password" required minLength={6} autoComplete="new-password" value={again} onChange={(e) => setAgain(e.target.value)} />
+      </label>
+      {error && <p className="auth-error">{error}</p>}
+      <div className="s-confirm-row">
+        <button
+          type="button"
+          className="btn ghost"
+          onClick={() => {
+            reset()
+            setOpen(false)
+          }}
+        >
+          {tr('Cancel')}
+        </button>
+        <button type="submit" className="btn primary" disabled={busy || !current || !next || !again}>
+          {busy ? tr('Please wait...') : tr('Update password')}
+        </button>
+      </div>
+    </form>
+  )
+}
+
+// General settings: the account itself (password, sign out, delete), how the
+// app looks and which language it speaks, plus the owner's own name and plan.
+export function GeneralSettings({ isOwner, email, plan, used, onEdit, onOpenPlan, onSignOut, onDeleteAll }) {
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [theme, setThemeState] = useState(getTheme)
+
+  return (
+    <div className="settings">
+      <Group title={tr("Account")}>
+        <div className="s-account">
+          <small>{tr('Signed in as {email}', { email })}</small>
+        </div>
+        <ChangePassword email={email} />
       </Group>
 
       <Group title={tr("Appearance")}>
@@ -271,7 +387,6 @@ export function SettingsHub({
         </Group>
       )}
 
-      <p className="saved-note">Pricr</p>
     </div>
   )
 }

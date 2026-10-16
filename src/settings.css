@@ -569,3 +569,11 @@
   color: var(--accent-hi);
 }
 .steps-scroll.steps-pills .step.done { color: var(--text-2); }
+
+/* general settings: account + change password */
+.s-account { padding: 12px 14px 4px; }
+.s-account small { font-size: 13px; color: var(--muted); }
+.s-password { display: grid; gap: 12px; padding: 14px; }
+.s-password .field { margin: 0; }
+.consent-declined { max-width: 320px; margin: 0 auto 18px; font-size: 14px; line-height: 1.5; color: var(--muted); text-align: left; }
+.consent-disagree { display: block; margin: 0 auto 10px; color: var(--muted); }

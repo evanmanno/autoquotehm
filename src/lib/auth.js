@@ -37,3 +37,16 @@ export async function signOut() {
   const { error } = await supabase.auth.signOut()
   if (error) throw error
 }
+
+// Changes the password for the signed-in account. The current password is
+// checked first (a fresh sign-in), so a borrowed unlocked phone can't change it.
+export async function changePassword(email, currentPassword, newPassword) {
+  const { error: checkError } = await supabase.auth.signInWithPassword({ email, password: currentPassword })
+  if (checkError) {
+    const err = new Error('wrong-current')
+    err.code = 'wrong-current'
+    throw err
+  }
+  const { error } = await supabase.auth.updateUser({ password: newPassword })
+  if (error) throw error
+}

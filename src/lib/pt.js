@@ -427,6 +427,23 @@ const pt = {
   "Class B": "Classe B",
   "Class C": "Classe C",
   "Class A is a premium property that expects the fastest, most thorough service; B is standard; C is older or basic. Each class adjusts the snow rates.": "A classe A é um imóvel premium que espera o serviço mais rápido e completo; a B é padrão; a C é mais antiga ou básica. Cada classe ajusta as tarifas de neve.",
+  "Account": "Conta",
+  "Password, language, appearance and sign out": "Senha, idioma, aparência e sair",
+  "Change password": "Alterar senha",
+  "Choose a new password for this account": "Escolha uma nova senha para esta conta",
+  "Current password": "Senha atual",
+  "New password": "Nova senha",
+  "Confirm new password": "Confirmar nova senha",
+  "Update password": "Atualizar senha",
+  "Password updated.": "Senha atualizada.",
+  "Use at least 6 characters.": "Use pelo menos 6 caracteres.",
+  "The new passwords don't match.": "As novas senhas não coincidem.",
+  "Pick a different password than your current one.": "Escolha uma senha diferente da atual.",
+  "The current password isn't right.": "A senha atual não está correta.",
+  "I disagree": "Não concordo",
+  "You need to agree to use Pricr": "Você precisa concordar para usar o Pricr",
+  "Pricr is built on combined, anonymous market data, so we can't offer an account without this agreement. We never share your company name, your customers' details or your individual prices.": "O Pricr é baseado em dados de mercado combinados e anônimos, por isso não podemos oferecer uma conta sem este acordo. Nunca compartilhamos o nome da sua empresa, os dados dos seus clientes nem os seus preços individuais.",
+  "Go back and review": "Voltar e revisar",
 }
 
 export default pt

@@ -49,7 +49,7 @@ import {
   saveQuote,
 } from './lib/teamStore'
 import { SavedQuotes, Team } from './Team'
-import { SettingsHub, SettingsPage } from './Settings'
+import { GeneralSettings, SettingsHub, SettingsPage } from './Settings'
 import PlanPage from './PlanPage'
 import LangToggle from './LangToggle'
 import { SHOW_PLANS, getPlan } from './lib/plans'
@@ -206,7 +206,7 @@ export default function App() {
   const [sendError, setSendError] = useState('')
   const [pdfState, setPdfState] = useState('idle') // idle | generating
   const [view, setView] = useState('new') // new | quotes | settings
-  const [settingsPage, setSettingsPage] = useState(null) // null (the list) | 'team' | 'plan'
+  const [settingsPage, setSettingsPage] = useState(null) // null (the list) | 'team' | 'plan' | 'general'
   const [editStep, setEditStep] = useState(1)
   const [me, setMe] = useState(null) // this login's row in the company's team
   const [savedQuoteId, setSavedQuoteId] = useState(null)
@@ -872,13 +872,23 @@ export default function App() {
             isOwner={isOwner}
             email={session.user.email}
             onEdit={openEditor}
-            plan={plan}
-            used={monthUsed}
-            onOpenPlan={() => setSettingsPage('plan')}
             onOpenTeam={() => setSettingsPage('team')}
-            onSignOut={quickSignOut}
-            onDeleteAll={deleteAllData}
+            onOpenGeneral={() => setSettingsPage('general')}
           />
+        )}
+        {view === 'settings' && settingsPage === 'general' && (
+          <SettingsPage title={tr('General settings')} onBack={() => setSettingsPage(null)}>
+            <GeneralSettings
+              isOwner={isOwner}
+              email={session.user.email}
+              plan={plan}
+              used={monthUsed}
+              onEdit={openEditor}
+              onOpenPlan={() => setSettingsPage('plan')}
+              onSignOut={quickSignOut}
+              onDeleteAll={deleteAllData}
+            />
+          </SettingsPage>
         )}
         {view === 'settings' && settingsPage === 'team' && (
           <SettingsPage title={isOwner ? tr('Team & invites') : tr('Your team')} onBack={() => setSettingsPage(null)}>

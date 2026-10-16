@@ -6,9 +6,13 @@
     padding: 0 28px;
   }
 
+  /* The header bar runs the full width of the page and its contents line up
+     with the page content below (the logo no longer touches the bar's edge). */
   .topbar {
-    padding-left: 0;
-    padding-right: 0;
+    margin-left: -28px;
+    margin-right: -28px;
+    padding-left: 28px;
+    padding-right: 28px;
   }
 
   .content {

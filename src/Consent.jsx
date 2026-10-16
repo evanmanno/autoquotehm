@@ -55,6 +55,7 @@ export function ConsentGate({ onAccept, onSignOut }) {
   const [checked, setChecked] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [declined, setDeclined] = useState(false)
 
   const submit = async (e) => {
     e.preventDefault()
@@ -69,19 +70,48 @@ export function ConsentGate({ onAccept, onSignOut }) {
     }
   }
 
+  const header = (
+    <header className="topbar">
+      <div className="topbar-row">
+        <div className="brand">
+          <span className="mark">
+            <img src={logoIcon} alt="" />
+          </span>
+          <span className="brand-text">Pricr</span>
+        </div>
+        <LangToggle />
+      </div>
+    </header>
+  )
+
+  // They chose not to agree: explain plainly, let them go back or leave.
+  if (declined) {
+    return (
+      <div className="app">
+        {header}
+        <main className="content">
+          <div className="hero consent-hero">
+            <h1>{tr('You need to agree to use Pricr')}</h1>
+            <p className="consent-declined">
+              {tr("Pricr is built on combined, anonymous market data, so we can't offer an account without this agreement. We never share your company name, your customers' details or your individual prices.")}
+            </p>
+            <div className="auth-form consent-form">
+              <button type="button" className="btn primary auth-submit" onClick={() => setDeclined(false)}>
+                {tr('Go back and review')}
+              </button>
+              <button type="button" className="btn ghost auth-submit" onClick={onSignOut}>
+                {tr('Sign out')}
+              </button>
+            </div>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
   return (
     <div className="app">
-      <header className="topbar">
-        <div className="topbar-row">
-          <div className="brand">
-            <span className="mark">
-              <img src={logoIcon} alt="" />
-            </span>
-            <span className="brand-text">Pricr</span>
-          </div>
-          <LangToggle />
-        </div>
-      </header>
+      {header}
       <main className="content">
         <div className="hero consent-hero">
           <h1>{tr('One quick thing before you start')}</h1>
@@ -92,6 +122,9 @@ export function ConsentGate({ onAccept, onSignOut }) {
               {busy ? tr('Please wait...') : tr('Agree and continue')}
             </button>
           </form>
+          <button type="button" className="link-plain consent-disagree" onClick={() => setDeclined(true)}>
+            {tr('I disagree')}
+          </button>
           <button type="button" className="link-plain" onClick={onSignOut}>
             {tr('Sign out')}
           </button>
