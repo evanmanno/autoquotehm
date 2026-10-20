@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { money } from './pricing'
 import { getPlan, SHOW_PLANS } from './lib/plans'
 import { getLocale, tr } from './lib/i18n'
+import { appStoreLinks } from './lib/appUrl'
 import {
   QUOTE_STATUSES,
   createInvite,
@@ -299,15 +300,22 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
           url,
         })
       : `Join ${company.businessName || tr('our team')} on Pricr. Download the app and sign up with this email: ${email}`
+    const { ios, android } = appStoreLinks()
+    const appLines = []
+    if (ios) appLines.push(`iPhone: ${ios}`)
+    if (android) appLines.push(`Android: ${android}`)
+    const fullText = appLines.length
+      ? `${text}\n\n${tr('Get the Pricr app:')}\n${appLines.join('\n')}`
+      : text
     if (navigator.share) {
       try {
-        await navigator.share({ title: tr('Team invite'), text })
+        await navigator.share({ title: tr('Team invite'), text: fullText })
         return
       } catch (err) {
         if (err?.name === 'AbortError') return
       }
     }
-    copy(url || text, 'fresh')
+    copy(appLines.length ? fullText : url || text, 'fresh')
   }
 
   const sendInvite = async (e) => {
@@ -519,6 +527,11 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
               <button type="button" className="btn ghost small" onClick={() => copy(freshLink.url, 'fresh')}>
                 {copied === 'fresh' ? tr('Copied') : tr('Copy link')}
               </button>
+              {(appStoreLinks().ios || appStoreLinks().android) && (
+                <p className="subgroup-hint">
+                  {tr('The message also includes links to download the app.')}
+                </p>
+              )}
               <p className="subgroup-hint">
                 {tr('They must sign up with exactly this email. After they join, they quote with your prices.')}
               </p>

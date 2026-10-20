@@ -444,6 +444,12 @@ const pt = {
   "You need to agree to use Pricr": "Você precisa concordar para usar o Pricr",
   "Pricr is built on combined, anonymous market data, so we can't offer an account without this agreement. We never share your company name, your customers' details or your individual prices.": "O Pricr é baseado em dados de mercado combinados e anônimos, por isso não podemos oferecer uma conta sem este acordo. Nunca compartilhamos o nome da sua empresa, os dados dos seus clientes nem os seus preços individuais.",
   "Go back and review": "Voltar e revisar",
+  "Download the Pricr app": "Baixe o app do Pricr",
+  "Quote faster on your phone. Open the app and sign up with the email you were invited at.": "Faça orçamentos mais rápido no celular. Abra o app e cadastre-se com o e-mail para o qual você foi convidado.",
+  "Download on the App Store": "Baixar na App Store",
+  "Get it on Google Play": "Disponível no Google Play",
+  "Get the Pricr app:": "Baixe o app do Pricr:",
+  "The message also includes links to download the app.": "A mensagem também inclui os links para baixar o app.",
 }
 
 export default pt

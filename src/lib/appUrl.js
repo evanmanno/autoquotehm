@@ -17,3 +17,26 @@ export function appUrl() {
   if (!native) return window.location.origin
   return (import.meta.env.VITE_APP_URL || '').trim().replace(/\/+$/, '')
 }
+
+// Where people download the app. Both come from build settings so they can be
+// filled in the moment each store listing is live; an empty one is simply not
+// offered. Set in .env.local and in Vercel:
+//   VITE_IOS_APP_URL      e.g. https://apps.apple.com/app/id1234567890
+//   VITE_ANDROID_APP_URL  e.g. https://play.google.com/store/apps/details?id=com.pricr.app
+export function appStoreLinks() {
+  const clean = (v) => (v || '').trim()
+  return {
+    ios: clean(import.meta.env.VITE_IOS_APP_URL),
+    android: clean(import.meta.env.VITE_ANDROID_APP_URL),
+  }
+}
+
+// Which phone the page is open on, so we can lead with the right store.
+export function devicePlatform() {
+  const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent || ''
+  if (/android/i.test(ua)) return 'android'
+  if (/iphone|ipad|ipod/i.test(ua)) return 'ios'
+  // iPadOS reports itself as a Mac with a touch screen.
+  if (/macintosh/i.test(ua) && typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1) return 'ios'
+  return 'desktop'
+}

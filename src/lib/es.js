@@ -445,6 +445,12 @@ const es = {
   "You need to agree to use Pricr": "Debes aceptar para usar Pricr",
   "Pricr is built on combined, anonymous market data, so we can't offer an account without this agreement. We never share your company name, your customers' details or your individual prices.": "Pricr se basa en datos de mercado combinados y anónimos, por eso no podemos ofrecer una cuenta sin este acuerdo. Nunca compartimos el nombre de tu empresa, los datos de tus clientes ni tus precios individuales.",
   "Go back and review": "Volver y revisar",
+  "Download the Pricr app": "Descarga la app de Pricr",
+  "Quote faster on your phone. Open the app and sign up with the email you were invited at.": "Cotiza más rápido desde tu teléfono. Abre la app y regístrate con el correo al que te invitaron.",
+  "Download on the App Store": "Descargar en el App Store",
+  "Get it on Google Play": "Disponible en Google Play",
+  "Get the Pricr app:": "Descarga la app de Pricr:",
+  "The message also includes links to download the app.": "El mensaje también incluye los enlaces para descargar la app.",
 }
 
 export default es

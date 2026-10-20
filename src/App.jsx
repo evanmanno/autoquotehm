@@ -52,6 +52,7 @@ import { SavedQuotes, Team } from './Team'
 import { GeneralSettings, SettingsHub, SettingsPage } from './Settings'
 import PlanPage from './PlanPage'
 import LangToggle from './LangToggle'
+import GetApp from './GetApp'
 import { SHOW_PLANS, getPlan } from './lib/plans'
 import { tr, useLang } from './lib/i18n'
 import { ConceptCard } from './Concept'
@@ -170,25 +171,6 @@ function loadDraft() {
   } catch {
     return newJob()
   }
-}
-
-const GLYPHS = [
-  [/sod|turf|lawn|mow|seed|fertiliz|aerat|dethatch/i, '🌱'],
-  [/mulch|bed|edging|garden|plant|shrub|tree|flower/i, '🌿'],
-  [/patio|paver|walkway|walk|wall|retain|steps|stone|hardscape/i, '🧱'],
-  [/irrigat|sprinkler|drain/i, '💧'],
-  [/light/i, '💡'],
-  [/salt|deic/i, '🧂'],
-  [/snow|plow|shovel|sidewalk|ice/i, '❄️'],
-  [/clean|wash/i, '🧽'],
-  [/gutter|roof/i, '🏠'],
-  [/haul|remov|dump|debris|dispos/i, '🚚'],
-  [/fence/i, '🪵'],
-  [/grad|excavat|dirt|loam|soil/i, '⛏️'],
-]
-const serviceGlyph = (service) => {
-  const hit = GLYPHS.find(([re]) => re.test(service.name || ''))
-  return hit ? hit[1] : '🛠️'
 }
 
 export default function App() {
@@ -1013,7 +995,6 @@ export default function App() {
                     <span className="check" aria-hidden="true">
                       {on ? '✓' : ''}
                     </span>
-                    <span className="service-icon" aria-hidden="true">{serviceGlyph(service)}</span>
                     <span className="service-text">
                       <strong>{service.name}</strong>
                       <small>
@@ -2079,6 +2060,7 @@ function Login({ invited }) {
             <p>
               {tr('We sent a confirmation link to {email}. Click it, then come back here and sign in.', { email })}
             </p>
+            {invited && <GetApp />}
             <button
               type="button"
               className="btn primary"
@@ -2119,6 +2101,7 @@ function Login({ invited }) {
               {tr("You've been invited to join a team. Create your account (or sign in) with the email address you were invited at.")}
             </p>
           )}
+          {invited && <GetApp />}
           <p>
             {mode === 'signup'
               ? tr('One login for your whole business — use it on any device.')
