@@ -1681,3 +1681,61 @@ input[type='date']::-webkit-date-and-time-value,
 input[type='time']::-webkit-date-and-time-value {
   text-align: left;
 }
+
+.segmented.tight {
+  flex-wrap: wrap;
+}
+
+.segmented.tight button {
+  flex: 1 1 auto;
+  padding: 11px 8px;
+  white-space: nowrap;
+}
+
+.snow-settings {
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+/* empty date/time pickers: iOS shows a blank box, so label it */
+.picker {
+  position: relative;
+}
+.picker.empty input {
+  color: transparent;
+}
+.picker-ph {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-3);
+  font-size: 16px;
+  pointer-events: none;
+}
+
+/* Settings > Service pricing: snow multipliers */
+.snow-settings .snow-sub {
+  margin: 14px 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.snow-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+}
+.snow-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.segmented.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}

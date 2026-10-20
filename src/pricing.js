@@ -53,7 +53,7 @@ export const INDUSTRIES = [
 // Snow jobs scale with how much fell. Each tier multiplies the base rate of any
 // service flagged `depthScaled` (plowing, shoveling) -- salting is the same
 // whether it fell 2" or 10", so it isn't. Placeholder multipliers: tune them to
-// your own per-inch pricing in Company Settings.
+// your own per-inch pricing in Settings > Service pricing.
 export const SNOW_DEPTH = [
   { id: 'light', label: '0–3"', mult: 1 },
   { id: 'mid', label: '3–6"', mult: 1.35 },
@@ -222,6 +222,19 @@ export function serviceQuantity(service, job) {
 
 export const snowDepthById = (id) => SNOW_DEPTH.find((d) => d.id === id) ?? SNOW_DEPTH[0]
 
+// The business's own multipliers from Settings > Service pricing, falling back
+// to the defaults above. Stored as e.g. { depth: { mid: 1.4 }, classes: { a: 1.2 } }.
+export const snowDepthFor = (company, id) => {
+  const d = snowDepthById(id)
+  const m = Number(company?.snowPricing?.depth?.[d.id])
+  return m > 0 ? { ...d, mult: m } : d
+}
+export const buildingClassFor = (company, id) => {
+  const c = buildingClassById(id)
+  const m = Number(company?.snowPricing?.classes?.[c.id])
+  return c.id && m > 0 ? { ...c, mult: m } : c
+}
+
 export function estimate(job, company) {
   const materials = (company.materials ?? SERVICES).map((m) => ({ ...seedFlags(m.id), ...m }))
   const equipmentList = company.equipment ?? EQUIPMENT
@@ -262,13 +275,13 @@ export function estimate(job, company) {
         if (visits > 1) name += ` — ${visits} visits`
       }
       if (!tbd && service.depthScaled) {
-        const depth = snowDepthById(job.snowDepth)
+        const depth = snowDepthFor(company, job.snowDepth)
         rate *= depth.mult
         depthLabel = depth.label
         name += ` (${depth.label} snow)`
       }
       if (!tbd && (service.perVisit || service.depthScaled)) {
-        const bc = buildingClassById(job.buildingClass)
+        const bc = buildingClassFor(company, job.buildingClass)
         if (bc.id) {
           rate *= bc.mult
           classLabel = bc.label

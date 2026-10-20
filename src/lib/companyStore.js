@@ -38,6 +38,10 @@ function toDbRow(company, ownerId) {
       : {}),
     // Crews need supabase/migration_12_crews.sql; same rule as above.
     ...(company._crews === true || company.crews?.length ? { crews: company.crews ?? [] } : {}),
+    // Snow multipliers need supabase/migration_13_snow_pricing.sql; same rule.
+    ...(company._snow === true || Object.keys(company.snowPricing ?? {}).length
+      ? { snow_pricing: company.snowPricing ?? {} }
+      : {}),
   }
 }
 
@@ -70,6 +74,8 @@ function fromDbRow(row) {
     employees: row.employees ?? [],
     crews: row.crews ?? [],
     _crews: 'crews' in row,
+    snowPricing: row.snow_pricing ?? {},
+    _snow: 'snow_pricing' in row,
     terms: row.terms ?? '',
     _extras: 'custom_materials' in row,
     brandColor: row.brand_color ?? '#1f6f45',

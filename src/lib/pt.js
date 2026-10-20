@@ -458,6 +458,10 @@ const pt = {
   "+ Add crew": "+ Adicionar equipe",
   "Job date": "Data do serviço",
   "Start time": "Horário de início",
+  "Pick a date": "Escolha uma data",
+  "Pick a time": "Escolha um horário",
+  "Snow depth & building class": "Profundidade da neve e classe do prédio",
+  "How much each choice changes your plowing and shoveling rates. 100% is your normal rate, 150% is one and a half times it. Salting isn't affected by depth.": "Quanto cada opção muda suas taxas de remoção de neve. 100% é sua taxa normal, 150% é uma vez e meia. O sal não muda com a profundidade.",
 }
 
 export default pt

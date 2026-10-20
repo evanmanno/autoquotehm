@@ -806,7 +806,7 @@ export default function App() {
         initial={company ?? emptyCompany}
         onSave={async (profile) => {
           try {
-            const saved = await saveCompany({ ...profile, _extras: company?._extras, _crews: company?._crews }, session.user.id)
+            const saved = await saveCompany({ ...profile, _extras: company?._extras, _crews: company?._crews, _snow: company?._snow }, session.user.id)
             setCompany(saved)
             setEditingCompany(false)
           } catch (err) {
@@ -1049,10 +1049,16 @@ export default function App() {
             <Section title={tr("Job Details")} hint={tr("Measurements drive the material cost.")}>
               <div className="row">
                 <Field label={tr("Job date")}>
-                  <input type="date" value={job.jobDate || ''} onChange={(e) => set('jobDate')(e.target.value)} />
+                  <div className={`picker ${job.jobDate ? '' : 'empty'}`}>
+                    <input type="date" value={job.jobDate || ''} onChange={(e) => set('jobDate')(e.target.value)} />
+                    {!job.jobDate && <span className="picker-ph">{tr('Pick a date')}</span>}
+                  </div>
                 </Field>
                 <Field label={tr("Start time")}>
-                  <input type="time" value={job.jobTime || ''} onChange={(e) => set('jobTime')(e.target.value)} />
+                  <div className={`picker ${job.jobTime ? '' : 'empty'}`}>
+                    <input type="time" value={job.jobTime || ''} onChange={(e) => set('jobTime')(e.target.value)} />
+                    {!job.jobTime && <span className="picker-ph">{tr('Pick a time')}</span>}
+                  </div>
                 </Field>
               </div>
 
@@ -1160,7 +1166,7 @@ export default function App() {
                     {tr('Plowing and shoveling price by square footage and scale with snowfall depth. Salting is a flat rate per square foot.')}
                   </p>
                   <Field label={tr("Snowfall depth")}>
-                    <div className="segmented">
+                    <div className="segmented tight">
                       {SNOW_DEPTH.map((d) => (
                         <button
                           key={d.id}
@@ -1174,7 +1180,7 @@ export default function App() {
                     </div>
                   </Field>
                   <Field label={tr("Building class")}>
-                    <div className="segmented">
+                    <div className="segmented tight grid2">
                       {BUILDING_CLASS.map((c) => (
                         <button
                           key={c.id || 'none'}
@@ -2242,6 +2248,16 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
     employees: (initial.employees ?? []).map((e) => ({ ...e, wage: String(e.wage ?? '') })),
     crews: (initial.crews ?? []).map((c) => ({ ...c, memberIds: c.memberIds ?? [] })),
     terms: initial.terms ?? '',
+    // Snow multipliers shown as "% of your base rate" (135 = 1.35x).
+    snowDepthPct: Object.fromEntries(
+      SNOW_DEPTH.map((d) => [d.id, String(Math.round((Number(initial.snowPricing?.depth?.[d.id]) || d.mult) * 100))]),
+    ),
+    snowClassPct: Object.fromEntries(
+      BUILDING_CLASS.filter((c) => c.id).map((c) => [
+        c.id,
+        String(Math.round((Number(initial.snowPricing?.classes?.[c.id]) || c.mult) * 100)),
+      ]),
+    ),
     logoUrl: initial.logoUrl ?? '',
     brandColor: initial.brandColor || '#1f6f45',
     industries:
@@ -2498,6 +2514,14 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
             ),
           })),
         terms: form.terms.trim(),
+        snowPricing: {
+          depth: Object.fromEntries(
+            SNOW_DEPTH.map((d) => [d.id, (num(form.snowDepthPct[d.id]) || d.mult * 100) / 100]),
+          ),
+          classes: Object.fromEntries(
+            BUILDING_CLASS.filter((c) => c.id).map((c) => [c.id, (num(form.snowClassPct[c.id]) || c.mult * 100) / 100]),
+          ),
+        },
         logoUrl: form.logoUrl || '',
         brandColor: form.brandColor || '#1f6f45',
       })
@@ -2971,6 +2995,43 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
                 + Add missing starter services
               </button>
             </div>
+
+            {form.materials.some((m) => categoryOf(m) === 'snow') && (
+              <div className="group snow-settings">
+                <h3 className="group-title">{tr("Snow depth & building class")}</h3>
+                <p className="subgroup-hint">
+                  {tr("How much each choice changes your plowing and shoveling rates. 100% is your normal rate, 150% is one and a half times it. Salting isn't affected by depth.")}
+                </p>
+                <h4 className="snow-sub">{tr("Snowfall depth")}</h4>
+                <div className="snow-grid">
+                  {SNOW_DEPTH.map((d) => (
+                    <label className="snow-cell" key={d.id}>
+                      <span>{d.label}</span>
+                      <NumInput
+                        value={form.snowDepthPct[d.id]}
+                        onChange={(v) => setForm((f) => ({ ...f, snowDepthPct: { ...f.snowDepthPct, [d.id]: v } }))}
+                        placeholder={String(Math.round(d.mult * 100))}
+                        suffix="%"
+                      />
+                    </label>
+                  ))}
+                </div>
+                <h4 className="snow-sub">{tr("Building class")}</h4>
+                <div className="snow-grid">
+                  {BUILDING_CLASS.filter((c) => c.id).map((c) => (
+                    <label className="snow-cell" key={c.id}>
+                      <span>{tr(c.label)}</span>
+                      <NumInput
+                        value={form.snowClassPct[c.id]}
+                        onChange={(v) => setForm((f) => ({ ...f, snowClassPct: { ...f.snowClassPct, [c.id]: v } }))}
+                        placeholder={String(Math.round(c.mult * 100))}
+                        suffix="%"
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
           </Section>
         )}
 

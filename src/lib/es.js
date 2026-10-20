@@ -459,6 +459,10 @@ const es = {
   "+ Add crew": "+ Agregar cuadrilla",
   "Job date": "Fecha del trabajo",
   "Start time": "Hora de inicio",
+  "Pick a date": "Elige una fecha",
+  "Pick a time": "Elige una hora",
+  "Snow depth & building class": "Profundidad de nieve y clase de edificio",
+  "How much each choice changes your plowing and shoveling rates. 100% is your normal rate, 150% is one and a half times it. Salting isn't affected by depth.": "Cuánto cambia cada opción tus tarifas de quitanieves y palas. 100% es tu tarifa normal, 150% es una vez y media. La sal no cambia con la profundidad.",
 }
 
 export default es
