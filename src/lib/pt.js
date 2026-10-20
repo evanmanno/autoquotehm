@@ -456,6 +456,8 @@ const pt = {
   "Crew name": "Nome da equipe",
   "Add employees above, then tap names to put them on this crew.": "Adicione funcionários acima e toque nos nomes para colocá-los nesta equipe.",
   "+ Add crew": "+ Adicionar equipe",
+  "Job date": "Data do serviço",
+  "Start time": "Horário de início",
 }
 
 export default pt

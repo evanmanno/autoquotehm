@@ -1,3 +1,4 @@
+import { formatJobWhen } from './lib/jobWhen'
 import { UNIT_LABEL, money, num, qty, serviceById, serviceQuantity } from './pricing'
 
 const SIGNOFF = 'Sent from Pricr.'
@@ -98,6 +99,7 @@ export function buildEmailBody(job, est, photoCount, company) {
   parts.push(`Estimated labor hours: ${qty(est.laborHours)}`)
   parts.push(`Crew members: ${qty(est.crewMembers)}`)
   if (job.crew) parts.push(`Crew assigned: ${job.crew}`)
+  if (formatJobWhen(job)) parts.push(`Scheduled: ${formatJobWhen(job)}`)
   if (est.equipmentItems.length) {
     const equipLines = est.equipmentItems
       .map((item) => `${item.name} (${qty(item.quantity)}d)`)

@@ -1,3 +1,4 @@
+import { formatJobWhen } from './jobWhen'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { UNIT_LABEL, money, qty, serviceQuantity } from '../pricing'
@@ -298,6 +299,7 @@ export async function buildQuotePdfDoc(job, est, company, opts = {}) {
     ['Issued', fmt(today)],
     ['Valid until', fmt(validUntil)],
     ['Prepared by', preparedBy || '—'],
+    ...(formatJobWhen(job) ? [['Scheduled', formatJobWhen(job)]] : []),
   ]
   let my = topY + 30
   meta.forEach(([label, value]) => {

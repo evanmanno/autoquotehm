@@ -32,6 +32,7 @@ import { getInitialSession, onAuthChange, recordConsent, signIn, signOut, signUp
 import { hasDataConsent } from './lib/consent'
 import { ConsentFields, ConsentGate } from './Consent'
 import { deleteCompany, fetchCompany, saveCompany, setCompanyPlan, uploadLogo } from './lib/companyStore'
+import { formatJobWhen } from './lib/jobWhen'
 import { buildCustomerLines, buildQuotePdf, customerRows, isLineHidden } from './lib/quotePdf'
 import { canApprove as roleCanApprove } from './lib/roles'
 import {
@@ -115,6 +116,8 @@ const emptyJob = {
   fuelCost: '',
   dumpLoads: '',
   notes: '',
+  jobDate: '', // when the work is scheduled, YYYY-MM-DD
+  jobTime: '', // start time, HH:MM
   // What the customer sees on the PDF: 'all' | 'total' | 'custom' (see quotePdf.js)
   detail: 'all',
   hiddenLines: [],
@@ -1044,6 +1047,15 @@ export default function App() {
         {view === 'new' && step === 2 && (
           <>
             <Section title={tr("Job Details")} hint={tr("Measurements drive the material cost.")}>
+              <div className="row">
+                <Field label={tr("Job date")}>
+                  <input type="date" value={job.jobDate || ''} onChange={(e) => set('jobDate')(e.target.value)} />
+                </Field>
+                <Field label={tr("Start time")}>
+                  <input type="time" value={job.jobTime || ''} onChange={(e) => set('jobTime')(e.target.value)} />
+                </Field>
+              </div>
+
               <Field label={tr("Property square footage")}>
                 <NumInput
                   value={job.squareFootage}
@@ -1669,6 +1681,7 @@ function Quote({
         {job.address && <p className="addr">{job.address}</p>}
         <p className="meta">
           {[
+            formatJobWhen(job),
             job.crew,
             est.crewMembers ? `${qty(est.crewMembers)} ${tr('crew')}` : '',
             job.phone,

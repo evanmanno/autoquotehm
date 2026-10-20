@@ -457,6 +457,8 @@ const es = {
   "Crew name": "Nombre de la cuadrilla",
   "Add employees above, then tap names to put them on this crew.": "Agrega empleados arriba y luego toca los nombres para ponerlos en esta cuadrilla.",
   "+ Add crew": "+ Agregar cuadrilla",
+  "Job date": "Fecha del trabajo",
+  "Start time": "Hora de inicio",
 }
 
 export default es
