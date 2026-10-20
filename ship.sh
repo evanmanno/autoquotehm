@@ -3,6 +3,8 @@
 # Usage:  bash ship.sh
 set -e
 cd "$(dirname "$0")"
+echo "0/3 Installing packages..."
+npm install
 echo "1/3 Building..."
 npm run build
 echo "2/3 Copying into the iPhone app..."
