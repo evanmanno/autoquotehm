@@ -462,6 +462,15 @@ const pt = {
   "Pick a time": "Escolha um horário",
   "Snow depth & building class": "Profundidade da neve e classe do prédio",
   "How much each choice changes your plowing and shoveling rates. 100% is your normal rate, 150% is one and a half times it. Salting isn't affected by depth.": "Quanto cada opção muda suas taxas de remoção de neve. 100% é sua taxa normal, 150% é uma vez e meia. O sal não muda com a profundidade.",
+  "Choose how depth and building class change your plowing and shoveling prices: a percent of your normal rate, or your own dollar amounts. Salting isn't affected by depth.": "Escolha como a profundidade e a classe do prédio mudam seus preços de remoção de neve: uma porcentagem da sua taxa normal ou seus próprios valores em dólares. O sal não muda com a profundidade.",
+  "% of rate": "% da taxa",
+  "$ amounts": "Valores em $",
+  "100% is your normal rate, 150% is one and a half times it.": "100% é sua taxa normal, 150% é uma vez e meia.",
+  "Your price at each depth, for each plowing and shoveling service.": "Seu preço em cada profundidade, para cada serviço de remoção de neve.",
+  "Add a plowing or shoveling service above to set depth prices.": "Adicione acima um serviço de remoção de neve para definir preços por profundidade.",
+  "Unnamed service": "Serviço sem nome",
+  "100% leaves the price alone; 115% adds 15%.": "100% mantém o preço; 115% soma 15%.",
+  "Dollars added to each snow rate (per driveway, per sq ft, etc.). Leave blank or 0 for no change.": "Dólares somados a cada taxa de neve (por entrada, por pé quadrado etc.). Deixe em branco ou 0 para não mudar.",
 }
 
 export default pt

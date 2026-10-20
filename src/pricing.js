@@ -231,8 +231,21 @@ export const snowDepthFor = (company, id) => {
 }
 export const buildingClassFor = (company, id) => {
   const c = buildingClassById(id)
-  const m = Number(company?.snowPricing?.classes?.[c.id])
-  return c.id && m > 0 ? { ...c, mult: m } : c
+  if (!c.id) return c
+  const sp = company?.snowPricing
+  // Dollar mode: a flat amount added to each snow rate (per driveway, per sq ft...).
+  if (sp?.classMode === 'dollar') return { ...c, add: Number(sp.classAdd?.[c.id]) || 0 }
+  const m = Number(sp?.classes?.[c.id])
+  return m > 0 ? { ...c, mult: m } : c
+}
+
+// Dollar mode for depth: the business's own price for this service at this
+// depth (e.g. driveway $30 / $40 / $55...). null means "use the percentage".
+export const snowDepthPrice = (company, serviceId, tierId) => {
+  const sp = company?.snowPricing
+  if (sp?.depthMode !== 'dollar') return null
+  const v = Number(sp.depthRates?.[serviceId]?.[tierId])
+  return v > 0 ? v : null
 }
 
 export function estimate(job, company) {
@@ -276,14 +289,15 @@ export function estimate(job, company) {
       }
       if (!tbd && service.depthScaled) {
         const depth = snowDepthFor(company, job.snowDepth)
-        rate *= depth.mult
+        const fixed = snowDepthPrice(company, service.id, depth.id)
+        rate = fixed != null ? fixed : rate * depth.mult
         depthLabel = depth.label
         name += ` (${depth.label} snow)`
       }
       if (!tbd && (service.perVisit || service.depthScaled)) {
         const bc = buildingClassFor(company, job.buildingClass)
         if (bc.id) {
-          rate *= bc.mult
+          rate = bc.add != null ? rate + bc.add : rate * bc.mult
           classLabel = bc.label
           name += ` — ${bc.label} building`
         }

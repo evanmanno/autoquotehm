@@ -1739,3 +1739,39 @@ input[type='time']::-webkit-date-and-time-value {
   display: grid;
   grid-template-columns: 1fr 1fr;
 }
+
+.snow-sub-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 16px 0 6px;
+}
+.snow-sub-row .snow-sub {
+  margin: 0;
+}
+.segmented.snow-mode {
+  flex: 0 0 auto;
+}
+.segmented.snow-mode button {
+  padding: 7px 12px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.snow-svc {
+  margin: 12px 0 4px;
+}
+.snow-svc > strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+.snow-svc > strong small {
+  color: var(--muted);
+  font-weight: 500;
+}
+.snow-svc .snow-grid {
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 8px;
+}

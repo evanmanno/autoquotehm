@@ -2258,6 +2258,18 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
         String(Math.round((Number(initial.snowPricing?.classes?.[c.id]) || c.mult) * 100)),
       ]),
     ),
+    // 'percent' or 'dollar' for each half of the snow settings.
+    snowDepthMode: initial.snowPricing?.depthMode === 'dollar' ? 'dollar' : 'percent',
+    snowDepthRates: Object.fromEntries(
+      Object.entries(initial.snowPricing?.depthRates ?? {}).map(([sid, tiers]) => [
+        sid,
+        Object.fromEntries(Object.entries(tiers ?? {}).map(([t, v]) => [t, String(v)])),
+      ]),
+    ),
+    snowClassMode: initial.snowPricing?.classMode === 'dollar' ? 'dollar' : 'percent',
+    snowClassAdd: Object.fromEntries(
+      BUILDING_CLASS.filter((c) => c.id).map((c) => [c.id, String(initial.snowPricing?.classAdd?.[c.id] ?? '')]),
+    ),
     logoUrl: initial.logoUrl ?? '',
     brandColor: initial.brandColor || '#1f6f45',
     industries:
@@ -2410,6 +2422,30 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
   const removeCustomMaterial = (index) =>
     setForm((f) => ({ ...f, customMaterials: f.customMaterials.filter((_, i) => i !== index) }))
 
+  // Snow services whose price scales with depth (plowing, shoveling).
+  const snowScaled = form.materials.filter(
+    (m) => categoryOf(m) === 'snow' && (m.depthScaled || seedFlags(m.id).depthScaled) && m.unit !== 'tbd',
+  )
+  // What the percent setting works out to in dollars -- the starting point when
+  // someone switches depth pricing to dollar amounts.
+  const depthDollarDefault = (m, d) => {
+    const v = num(m.rate) * ((num(form.snowDepthPct[d.id]) || d.mult * 100) / 100)
+    return v ? String(Math.round(v * 1000) / 1000) : '0'
+  }
+  const setSnowDepthMode = (mode) =>
+    setForm((f) => {
+      if (mode !== 'dollar') return { ...f, snowDepthMode: mode }
+      const rates = { ...f.snowDepthRates }
+      snowScaled.forEach((m) => {
+        const cur = { ...(rates[m.id] ?? {}) }
+        SNOW_DEPTH.forEach((d) => {
+          if (!cur[d.id]) cur[d.id] = depthDollarDefault(m, d)
+        })
+        rates[m.id] = cur
+      })
+      return { ...f, snowDepthMode: 'dollar', snowDepthRates: rates }
+    })
+
   const addEmployee = () => {
     const id = makeId()
     setFocusId(id)
@@ -2520,6 +2556,23 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
           ),
           classes: Object.fromEntries(
             BUILDING_CLASS.filter((c) => c.id).map((c) => [c.id, (num(form.snowClassPct[c.id]) || c.mult * 100) / 100]),
+          ),
+          depthMode: form.snowDepthMode,
+          depthRates: Object.fromEntries(
+            Object.entries(form.snowDepthRates)
+              .map(([sid, tiers]) => [
+                sid,
+                Object.fromEntries(
+                  Object.entries(tiers ?? {})
+                    .filter(([, v]) => num(v) > 0)
+                    .map(([t, v]) => [t, num(v)]),
+                ),
+              ])
+              .filter(([, tiers]) => Object.keys(tiers).length > 0),
+          ),
+          classMode: form.snowClassMode,
+          classAdd: Object.fromEntries(
+            BUILDING_CLASS.filter((c) => c.id).map((c) => [c.id, num(form.snowClassAdd[c.id])]),
           ),
         },
         logoUrl: form.logoUrl || '',
@@ -3000,33 +3053,125 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
               <div className="group snow-settings">
                 <h3 className="group-title">{tr("Snow depth & building class")}</h3>
                 <p className="subgroup-hint">
-                  {tr("How much each choice changes your plowing and shoveling rates. 100% is your normal rate, 150% is one and a half times it. Salting isn't affected by depth.")}
+                  {tr("Choose how depth and building class change your plowing and shoveling prices: a percent of your normal rate, or your own dollar amounts. Salting isn't affected by depth.")}
                 </p>
-                <h4 className="snow-sub">{tr("Snowfall depth")}</h4>
-                <div className="snow-grid">
-                  {SNOW_DEPTH.map((d) => (
-                    <label className="snow-cell" key={d.id}>
-                      <span>{d.label}</span>
-                      <NumInput
-                        value={form.snowDepthPct[d.id]}
-                        onChange={(v) => setForm((f) => ({ ...f, snowDepthPct: { ...f.snowDepthPct, [d.id]: v } }))}
-                        placeholder={String(Math.round(d.mult * 100))}
-                        suffix="%"
-                      />
-                    </label>
-                  ))}
+
+                <div className="snow-sub-row">
+                  <h4 className="snow-sub">{tr("Snowfall depth")}</h4>
+                  <div className="segmented small snow-mode">
+                    <button
+                      type="button"
+                      className={form.snowDepthMode === 'percent' ? 'on' : ''}
+                      onClick={() => setForm((f) => ({ ...f, snowDepthMode: 'percent' }))}
+                    >
+                      {tr("% of rate")}
+                    </button>
+                    <button
+                      type="button"
+                      className={form.snowDepthMode === 'dollar' ? 'on' : ''}
+                      onClick={() => setSnowDepthMode('dollar')}
+                    >
+                      {tr("$ amounts")}
+                    </button>
+                  </div>
                 </div>
-                <h4 className="snow-sub">{tr("Building class")}</h4>
+                {form.snowDepthMode === 'percent' ? (
+                  <>
+                    <p className="subgroup-hint">{tr("100% is your normal rate, 150% is one and a half times it.")}</p>
+                    <div className="snow-grid">
+                      {SNOW_DEPTH.map((d) => (
+                        <label className="snow-cell" key={d.id}>
+                          <span>{d.label}</span>
+                          <NumInput
+                            value={form.snowDepthPct[d.id]}
+                            onChange={(v) => setForm((f) => ({ ...f, snowDepthPct: { ...f.snowDepthPct, [d.id]: v } }))}
+                            placeholder={String(Math.round(d.mult * 100))}
+                            suffix="%"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="subgroup-hint">{tr("Your price at each depth, for each plowing and shoveling service.")}</p>
+                    {snowScaled.length === 0 && (
+                      <p className="subgroup-hint">{tr("Add a plowing or shoveling service above to set depth prices.")}</p>
+                    )}
+                    {snowScaled.map((m) => (
+                      <div className="snow-svc" key={m.id}>
+                        <strong>
+                          {m.name || tr('Unnamed service')} <small>/ {UNIT_LABEL[m.unit]}</small>
+                        </strong>
+                        <div className="snow-grid">
+                          {SNOW_DEPTH.map((d) => (
+                            <label className="snow-cell" key={d.id}>
+                              <span>{d.label}</span>
+                              <NumInput
+                                value={form.snowDepthRates[m.id]?.[d.id] ?? ''}
+                                onChange={(v) =>
+                                  setForm((f) => ({
+                                    ...f,
+                                    snowDepthRates: {
+                                      ...f.snowDepthRates,
+                                      [m.id]: { ...(f.snowDepthRates[m.id] ?? {}), [d.id]: v },
+                                    },
+                                  }))
+                                }
+                                placeholder={depthDollarDefault(m, d)}
+                                suffix="$"
+                              />
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+
+                <div className="snow-sub-row">
+                  <h4 className="snow-sub">{tr("Building class")}</h4>
+                  <div className="segmented small snow-mode">
+                    <button
+                      type="button"
+                      className={form.snowClassMode === 'percent' ? 'on' : ''}
+                      onClick={() => setForm((f) => ({ ...f, snowClassMode: 'percent' }))}
+                    >
+                      {tr("% of rate")}
+                    </button>
+                    <button
+                      type="button"
+                      className={form.snowClassMode === 'dollar' ? 'on' : ''}
+                      onClick={() => setForm((f) => ({ ...f, snowClassMode: 'dollar' }))}
+                    >
+                      {tr("$ amounts")}
+                    </button>
+                  </div>
+                </div>
+                <p className="subgroup-hint">
+                  {form.snowClassMode === 'percent'
+                    ? tr("100% leaves the price alone; 115% adds 15%.")
+                    : tr("Dollars added to each snow rate (per driveway, per sq ft, etc.). Leave blank or 0 for no change.")}
+                </p>
                 <div className="snow-grid">
                   {BUILDING_CLASS.filter((c) => c.id).map((c) => (
                     <label className="snow-cell" key={c.id}>
                       <span>{tr(c.label)}</span>
-                      <NumInput
-                        value={form.snowClassPct[c.id]}
-                        onChange={(v) => setForm((f) => ({ ...f, snowClassPct: { ...f.snowClassPct, [c.id]: v } }))}
-                        placeholder={String(Math.round(c.mult * 100))}
-                        suffix="%"
-                      />
+                      {form.snowClassMode === 'percent' ? (
+                        <NumInput
+                          value={form.snowClassPct[c.id]}
+                          onChange={(v) => setForm((f) => ({ ...f, snowClassPct: { ...f.snowClassPct, [c.id]: v } }))}
+                          placeholder={String(Math.round(c.mult * 100))}
+                          suffix="%"
+                        />
+                      ) : (
+                        <NumInput
+                          value={form.snowClassAdd[c.id]}
+                          onChange={(v) => setForm((f) => ({ ...f, snowClassAdd: { ...f.snowClassAdd, [c.id]: v } }))}
+                          placeholder="0"
+                          suffix="+$"
+                        />
+                      )}
                     </label>
                   ))}
                 </div>
