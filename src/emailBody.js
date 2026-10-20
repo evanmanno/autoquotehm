@@ -97,7 +97,7 @@ export function buildEmailBody(job, est, photoCount, company) {
 
   parts.push(`Estimated labor hours: ${qty(est.laborHours)}`)
   parts.push(`Crew members: ${qty(est.crewMembers)}`)
-  parts.push(`Crew assigned: ${job.crew}`)
+  if (job.crew) parts.push(`Crew assigned: ${job.crew}`)
   if (est.equipmentItems.length) {
     const equipLines = est.equipmentItems
       .map((item) => `${item.name} (${qty(item.quantity)}d)`)

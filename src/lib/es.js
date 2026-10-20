@@ -451,6 +451,12 @@ const es = {
   "Get it on Google Play": "Disponible en Google Play",
   "Get the Pricr app:": "Descarga la app de Pricr:",
   "The message also includes links to download the app.": "El mensaje también incluye los enlaces para descargar la app.",
+  "Crews": "Cuadrillas",
+  "Group your people into crews. Pick a crew on a quote and everyone on it is added to the job.": "Agrupa a tu gente en cuadrillas. Elige una cuadrilla en una cotización y todos sus miembros se agregan al trabajo.",
+  "Crew name, e.g. Mowing Crew": "Nombre de la cuadrilla, ej. Cuadrilla de corte",
+  "Crew name": "Nombre de la cuadrilla",
+  "Add employees above, then tap names to put them on this crew.": "Agrega empleados arriba y luego toca los nombres para ponerlos en esta cuadrilla.",
+  "+ Add crew": "+ Agregar cuadrilla",
 }
 
 export default es

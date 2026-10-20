@@ -35,7 +35,7 @@ export async function sendQuote(job, est, photoCount, company) {
       customer_name: customer,
       customer_phone: job.phone || '—',
       property_address: job.address || '—',
-      crew: job.crew,
+      crew: job.crew || '—',
       prepared_by: company?.crewMemberName || '—',
       quote_price: money(est.quotePrice),
       total_cost: money(est.totalCost),

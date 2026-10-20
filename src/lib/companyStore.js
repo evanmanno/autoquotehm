@@ -36,6 +36,8 @@ function toDbRow(company, ownerId) {
     ...(company._extras === true || (company.terms ?? '') !== ''
       ? { terms: company.terms ?? '' }
       : {}),
+    // Crews need supabase/migration_12_crews.sql; same rule as above.
+    ...(company._crews === true || company.crews?.length ? { crews: company.crews ?? [] } : {}),
   }
 }
 
@@ -66,6 +68,8 @@ function fromDbRow(row) {
     })),
     customMaterials: row.custom_materials ?? [],
     employees: row.employees ?? [],
+    crews: row.crews ?? [],
+    _crews: 'crews' in row,
     terms: row.terms ?? '',
     _extras: 'custom_materials' in row,
     brandColor: row.brand_color ?? '#1f6f45',

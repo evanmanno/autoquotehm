@@ -209,6 +209,18 @@ export default function App() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(job))
   }, [job])
 
+  // Once the business has its own crews, the old default "Crew 1" label only
+  // stays on a quote if it matches one of them.
+  useEffect(() => {
+    const crews = company?.crews ?? []
+    if (!crews.length) return
+    setJob((j) => {
+      if (crews.some((c) => c.id === j.crewId) || !j.crew) return j
+      const byName = crews.find((c) => c.name === j.crew)
+      return byName ? { ...j, crewId: byName.id } : { ...j, crew: '', crewId: '' }
+    })
+  }, [company?.crews])
+
   // Track the logged-in account. Each business signs in on its own, from
   // any device -- this replaces the old "whatever's in this browser" model.
   useEffect(() => {
@@ -338,6 +350,20 @@ export default function App() {
       return { ...j, employeeIds: ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id] }
     })
   const staffList = company?.employees ?? []
+  const crewList = company?.crews ?? []
+  // Picking a crew puts everyone on it onto the job (labor is costed from
+  // their wages); people can still be added or removed one by one after.
+  const pickCrew = (crew) =>
+    setJob((j) =>
+      crewList.length
+        ? {
+            ...j,
+            crew: crew.name,
+            crewId: crew.id,
+            employeeIds: (crew.memberIds ?? []).filter((id) => staffList.some((e) => e.id === id)),
+          }
+        : { ...j, crew: crew.name },
+    )
   const materialList = company?.customMaterials ?? []
 
   const est = useMemo(() => estimate(job, company ?? emptyCompany), [job, company])
@@ -777,7 +803,7 @@ export default function App() {
         initial={company ?? emptyCompany}
         onSave={async (profile) => {
           try {
-            const saved = await saveCompany({ ...profile, _extras: company?._extras }, session.user.id)
+            const saved = await saveCompany({ ...profile, _extras: company?._extras, _crews: company?._crews }, session.user.id)
             setCompany(saved)
             setEditingCompany(false)
           } catch (err) {
@@ -1190,6 +1216,27 @@ export default function App() {
                 </Field>
               </div>
 
+              <Field label={tr("Which crew")}>
+                <div className="segmented crew-pick">
+                  {(crewList.length
+                    ? crewList
+                    : [
+                        { id: 'Crew 1', name: 'Crew 1' },
+                        { id: 'Crew 2', name: 'Crew 2' },
+                      ]
+                  ).map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className={(crewList.length ? job.crewId === c.id : job.crew === c.name) ? 'on' : ''}
+                      onClick={() => pickCrew(c)}
+                    >
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+
               {staffList.length > 0 && (
                 <div className="subgroup">
                   <h3>{tr("Who's on this job")}</h3>
@@ -1219,21 +1266,6 @@ export default function App() {
                   </div>
                 </div>
               )}
-
-              <Field label={tr("Which crew")}>
-                <div className="segmented">
-                  {['Crew 1', 'Crew 2'].map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      className={job.crew === c ? 'on' : ''}
-                      onClick={() => set('crew')(c)}
-                    >
-                      {c}
-                    </button>
-                  ))}
-                </div>
-              </Field>
 
               <div className="subgroup">
                 <h3>{tr("Equipment used")}</h3>
@@ -1636,10 +1668,14 @@ function Quote({
         <h2>{job.customerName || 'Unnamed customer'}</h2>
         {job.address && <p className="addr">{job.address}</p>}
         <p className="meta">
-          {job.crew}
-          {est.crewMembers ? ` · ${qty(est.crewMembers)} ${tr('crew')}` : ''}
-          {job.phone ? ` · ${job.phone}` : ''}
-          {photoCount ? ` · ${tr(photoCount === 1 ? '{n} photo' : '{n} photos', { n: photoCount })}` : ''}
+          {[
+            job.crew,
+            est.crewMembers ? `${qty(est.crewMembers)} ${tr('crew')}` : '',
+            job.phone,
+            photoCount ? tr(photoCount === 1 ? '{n} photo' : '{n} photos', { n: photoCount }) : '',
+          ]
+            .filter(Boolean)
+            .join(' · ')}
         </p>
       </section>
 
@@ -2191,6 +2227,7 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
     equipment: (initial.equipment ?? []).map((e) => ({ ...e, rate: String(e.rate ?? '') })),
     customMaterials: (initial.customMaterials ?? []).map((m) => ({ ...m, cost: String(m.cost ?? '') })),
     employees: (initial.employees ?? []).map((e) => ({ ...e, wage: String(e.wage ?? '') })),
+    crews: (initial.crews ?? []).map((c) => ({ ...c, memberIds: c.memberIds ?? [] })),
     terms: initial.terms ?? '',
     logoUrl: initial.logoUrl ?? '',
     brandColor: initial.brandColor || '#1f6f45',
@@ -2360,6 +2397,24 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
   const removeEmployee = (index) =>
     setForm((f) => ({ ...f, employees: f.employees.filter((_, i) => i !== index) }))
 
+  const addCrew = () => {
+    const id = makeId()
+    setFocusId(id)
+    setForm((f) => ({ ...f, crews: [...f.crews, { id, name: '', memberIds: [] }] }))
+  }
+  const updateCrew = (index, patch) =>
+    setForm((f) => ({ ...f, crews: f.crews.map((c, i) => (i === index ? { ...c, ...patch } : c)) }))
+  const removeCrew = (index) => setForm((f) => ({ ...f, crews: f.crews.filter((_, i) => i !== index) }))
+  const toggleCrewMember = (index, empId) =>
+    setForm((f) => ({
+      ...f,
+      crews: f.crews.map((c, i) => {
+        if (i !== index) return c
+        const ids = c.memberIds ?? []
+        return { ...c, memberIds: ids.includes(empId) ? ids.filter((x) => x !== empId) : [...ids, empId] }
+      }),
+    }))
+
   const canSave = form.businessName.trim() !== '' && form.crewMemberName.trim() !== ''
 
   const save = async () => {
@@ -2419,6 +2474,15 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
             name: e.name.trim(),
             wageType: e.wageType || 'hourly',
             wage: num(e.wage) || 0,
+          })),
+        crews: form.crews
+          .filter((c) => c.name.trim() !== '')
+          .map((c) => ({
+            id: c.id,
+            name: c.name.trim(),
+            memberIds: (c.memberIds ?? []).filter((id) =>
+              form.employees.some((e) => e.id === id && e.name.trim() !== ''),
+            ),
           })),
         terms: form.terms.trim(),
         logoUrl: form.logoUrl || '',
@@ -3157,6 +3221,64 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
             </div>
             <button type="button" className="add-row" onClick={addEmployee}>
               {tr("+ Add employee")}
+            </button>
+          </Section>
+
+          <Section
+            title={tr("Crews")}
+            hint={tr("Group your people into crews. Pick a crew on a quote and everyone on it is added to the job.")}
+          >
+            <div className="edit-list">
+              {form.crews.map((crew, i) => {
+                const people = form.employees.filter((e) => e.name.trim() !== '')
+                return (
+                  <div className="crew-edit" key={crew.id}>
+                    <div className="crew-head">
+                      <input
+                        type="text"
+                        className="pr-name"
+                        value={crew.name}
+                        autoFocus={crew.id === focusId}
+                        onChange={(ev) => updateCrew(i, { name: ev.target.value })}
+                        placeholder={tr("Crew name, e.g. Mowing Crew")}
+                        aria-label={tr("Crew name")}
+                      />
+                      <button
+                        type="button"
+                        className="edit-remove"
+                        onClick={() => removeCrew(i)}
+                        aria-label={`Remove ${crew.name || 'crew'}`}
+                      >
+                        <TrashIcon />
+                      </button>
+                    </div>
+                    {people.length ? (
+                      <div className="crew-members">
+                        {people.map((emp) => {
+                          const on = (crew.memberIds ?? []).includes(emp.id)
+                          return (
+                            <button
+                              key={emp.id}
+                              type="button"
+                              className={`crew-chip ${on ? 'on' : ''}`}
+                              aria-pressed={on}
+                              onClick={() => toggleCrewMember(i, emp.id)}
+                            >
+                              {on ? '✓ ' : ''}
+                              {emp.name}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <p className="subgroup-hint">{tr("Add employees above, then tap names to put them on this crew.")}</p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            <button type="button" className="add-row" onClick={addCrew}>
+              {tr("+ Add crew")}
             </button>
           </Section>
           </>

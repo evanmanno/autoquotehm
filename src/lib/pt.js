@@ -450,6 +450,12 @@ const pt = {
   "Get it on Google Play": "Disponível no Google Play",
   "Get the Pricr app:": "Baixe o app do Pricr:",
   "The message also includes links to download the app.": "A mensagem também inclui os links para baixar o app.",
+  "Crews": "Equipes",
+  "Group your people into crews. Pick a crew on a quote and everyone on it is added to the job.": "Organize seu pessoal em equipes. Escolha uma equipe no orçamento e todos dela são adicionados ao serviço.",
+  "Crew name, e.g. Mowing Crew": "Nome da equipe, ex. Equipe de corte",
+  "Crew name": "Nome da equipe",
+  "Add employees above, then tap names to put them on this crew.": "Adicione funcionários acima e toque nos nomes para colocá-los nesta equipe.",
+  "+ Add crew": "+ Adicionar equipe",
 }
 
 export default pt

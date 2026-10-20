@@ -1610,3 +1610,56 @@ textarea::placeholder {
   color: var(--text-3);
   text-align: right;
 }
+
+/* ---------- crews (Settings > Rates, margins & employees) ---------- */
+
+.crew-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.crew-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.crew-head .pr-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.crew-members {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.crew-chip {
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.crew-chip.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.segmented.crew-pick {
+  flex-wrap: wrap;
+}
+
+.segmented.crew-pick button {
+  flex: 1 1 30%;
+}
