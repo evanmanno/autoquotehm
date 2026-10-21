@@ -471,6 +471,21 @@ const pt = {
   "Unnamed service": "Serviço sem nome",
   "100% leaves the price alone; 115% adds 15%.": "100% mantém o preço; 115% soma 15%.",
   "Dollars added to each snow rate (per driveway, per sq ft, etc.). Leave blank or 0 for no change.": "Dólares somados a cada taxa de neve (por entrada, por pé quadrado etc.). Deixe em branco ou 0 para não mudar.",
+  "DELETE": "EXCLUIR",
+  "Couldn't delete your account. Check your connection and try again, or contact support.": "Não foi possível excluir sua conta. Verifique sua conexão e tente de novo, ou fale com o suporte.",
+  "Delete my account": "Excluir minha conta",
+  "Permanently delete your login and data": "Exclui para sempre seu acesso e seus dados",
+  "This permanently deletes your login and your whole business from Pricr: services, rates, quotes and your team's access. It can't be undone.": "Isso exclui para sempre seu acesso e toda a sua empresa do Pricr: serviços, preços, orçamentos e o acesso da sua equipe. Não pode ser desfeito.",
+  "This permanently deletes your login and removes you from your team. Quotes you made stay with the business. It can't be undone.": "Isso exclui para sempre seu acesso e remove você da equipe. Os orçamentos que você fez ficam com a empresa. Não pode ser desfeito.",
+  "Type {word} to confirm": "Digite {word} para confirmar",
+  "Deleting…": "Excluindo…",
+  "Help & legal": "Ajuda e jurídico",
+  "Support": "Suporte",
+  "Privacy policy": "Política de privacidade",
+  "Terms of service": "Termos de serviço",
+  "By creating an account, you agree to our Terms and Privacy Policy.": "Ao criar uma conta, você concorda com nossos Termos e a Política de privacidade.",
+  "Privacy": "Privacidade",
+  "To stop contributing, delete your account in Settings.": "Para parar de contribuir, exclua sua conta em Configurações.",
 }
 
 export default pt

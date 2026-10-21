@@ -40,3 +40,15 @@ export function devicePlatform() {
   if (/macintosh/i.test(ua) && typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1) return 'ios'
   return 'desktop'
 }
+
+// Public pages (privacy, terms, support) live on the web app. Used for links
+// from inside the app, so they always open the live site.
+export function pageUrl(page) {
+  const base = appUrl() || 'https://autoquotehm.vercel.app'
+  return `${base}/${page}`
+}
+
+// Opens a public page: a new tab on the web, Safari/Chrome inside the phone app.
+export function openPage(page) {
+  window.open(pageUrl(page), '_blank', 'noopener')
+}

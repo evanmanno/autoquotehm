@@ -577,3 +577,16 @@
 .s-password .field { margin: 0; }
 .consent-declined { max-width: 320px; margin: 0 auto 18px; font-size: 14px; line-height: 1.5; color: var(--muted); text-align: left; }
 .consent-disagree { display: block; margin: 0 auto 10px; color: var(--muted); }
+
+.s-delete-type {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.s-delete-error {
+  color: var(--danger, #e5484d);
+  font-size: 13px;
+}

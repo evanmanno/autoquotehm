@@ -3,6 +3,7 @@ import { money } from './pricing'
 import { getPlan, SHOW_PLANS } from './lib/plans'
 import { getLocale, tr } from './lib/i18n'
 import { appStoreLinks } from './lib/appUrl'
+import { APP_NAME } from './lib/brand'
 import {
   QUOTE_STATUSES,
   createInvite,
@@ -299,7 +300,7 @@ export function Team({ company, isOwner, me, userId, onProfileSaved }) {
           email,
           url,
         })
-      : `Join ${company.businessName || tr('our team')} on Pricr. Download the app and sign up with this email: ${email}`
+      : `Join ${company.businessName || tr('our team')} on ${APP_NAME}. Download the app and sign up with this email: ${email}`
     const { ios, android } = appStoreLinks()
     const appLines = []
     if (ios) appLines.push(`iPhone: ${ios}`)

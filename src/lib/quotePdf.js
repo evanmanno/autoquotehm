@@ -1,4 +1,5 @@
 import { formatJobWhen } from './jobWhen'
+import { APP_NAME } from './brand'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { UNIT_LABEL, money, qty, serviceQuantity } from '../pricing'
@@ -515,7 +516,7 @@ export async function buildQuotePdfDoc(job, est, company, opts = {}) {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7.5)
     doc.setTextColor(165, 170, 167)
-    doc.text('Created with Pricr', margin, pageHeight - 24)
+    doc.text(`Created with ${APP_NAME}`, margin, pageHeight - 24)
     if (pageCount > 1) doc.text(`Page ${i} of ${pageCount}`, right, pageHeight - 24, { align: 'right' })
   }
 

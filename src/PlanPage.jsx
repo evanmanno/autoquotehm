@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ENTERPRISE_EMAIL, PLANS, getPlan, nextReset } from './lib/plans'
 import { listMembers } from './lib/teamStore'
+import { APP_NAME } from './lib/brand'
 import { getLocale, tr, useLang } from './lib/i18n'
 
 const money = (n) => `$${n.toLocaleString('en-US')}`
@@ -157,7 +158,7 @@ export default function PlanPage({ company, used, isOwner, onChangePlan }) {
         </p>
         <a
           className="btn ghost"
-          href={`mailto:${ENTERPRISE_EMAIL}?subject=${encodeURIComponent('Pricr Enterprise')}`}
+          href={`mailto:${ENTERPRISE_EMAIL}?subject=${encodeURIComponent(`${APP_NAME} Enterprise`)}`}
         >
           {tr('Contact us')}
         </a>

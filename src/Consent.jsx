@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import logoIcon from './assets/logo-icon.png'
 import { tr, useLang } from './lib/i18n'
+import { APP_NAME } from './lib/brand'
 import LangToggle from './LangToggle'
 
 // The "what we use and what we never use" details, shared by the sign-up form
@@ -13,7 +14,7 @@ function ConsentDetails() {
         <li>{tr('We use: the rates and margins you set, which services you quote, quote totals, general area (such as town or ZIP code) and dates.')}</li>
         <li>{tr('We never use or share: customer names, phone numbers, emails or addresses, your photos or your company name.')}</li>
         <li>{tr('Numbers are combined across several businesses and shown as averages and ranges, so no company can be picked out.')}</li>
-        <li>{tr('To stop contributing, delete your business data in Settings.')}</li>
+        <li>{tr('To stop contributing, delete your account in Settings.')}</li>
       </ul>
     </details>
   )
@@ -77,7 +78,7 @@ export function ConsentGate({ onAccept, onSignOut }) {
           <span className="mark">
             <img src={logoIcon} alt="" />
           </span>
-          <span className="brand-text">Pricr</span>
+          <span className="brand-text">{APP_NAME}</span>
         </div>
         <LangToggle />
       </div>

@@ -1669,6 +1669,8 @@ textarea::placeholder {
 /* date / time pickers (Job Details) */
 input[type='date'],
 input[type='time'] {
+  min-width: 0;
+  max-width: 100%;
   -webkit-appearance: none;
   appearance: none;
   min-height: 50px;
@@ -1774,4 +1776,9 @@ input[type='time']::-webkit-date-and-time-value {
 .snow-svc .snow-grid {
   grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
   gap: 8px;
+}
+
+/* side-by-side fields (job date / start time) must be able to shrink */
+.row > .field {
+  min-width: 0;
 }

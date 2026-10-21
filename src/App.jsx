@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { appUrl } from './lib/appUrl'
+import { appUrl, pageUrl } from './lib/appUrl'
+import { APP_NAME } from './lib/brand'
 import {
   CATEGORIES,
   DUMP_FEE,
@@ -28,7 +29,7 @@ import {
 import { isConfigured, notifyPeople, sendQuote } from './email'
 import logoIcon from './assets/logo-icon.png'
 import { haptic, isNative, pickPhotos } from './lib/native'
-import { getInitialSession, onAuthChange, recordConsent, signIn, signOut, signUp } from './lib/auth'
+import { deleteMyAccount, getInitialSession, onAuthChange, recordConsent, signIn, signOut, signUp } from './lib/auth'
 import { hasDataConsent } from './lib/consent'
 import { ConsentFields, ConsentGate } from './Consent'
 import { deleteCompany, fetchCompany, saveCompany, setCompanyPlan, uploadLogo } from './lib/companyStore'
@@ -586,7 +587,7 @@ export default function App() {
             `Approval needed — ${job.customerName || 'quote'} — ${money(est.quotePrice)}`,
             `${reviewerName || 'A teammate'} sent a quote for approval.\n\nCustomer: ${job.customerName || '—'}\nQuote: ${money(est.quotePrice)}${
               note?.trim() ? `\nNote: ${note.trim()}` : ''
-            }\n\nOpen Pricr and go to Quotes to approve it: ${appUrl()}`,
+            }\n\nOpen ${APP_NAME} and go to Quotes to approve it: ${appUrl()}`,
           ),
         )
         .catch(() => {})
@@ -620,7 +621,7 @@ export default function App() {
           `Changes requested — ${job.customerName || 'quote'}`,
           `${reviewerName} sent your quote for ${job.customerName || 'a customer'} back${
             note?.trim() ? `:\n\n${note.trim()}` : '.'
-          }\n\nOpen Pricr and go to Quotes to update it and send it again: ${appUrl()}`,
+          }\n\nOpen ${APP_NAME} and go to Quotes to update it and send it again: ${appUrl()}`,
         ),
       )
     } catch (err) {
@@ -718,6 +719,13 @@ export default function App() {
     await signOutNow()
   }
 
+  // Deletes the login itself (and, for an owner, the business). Throws so the
+  // settings screen can show what went wrong.
+  const deleteAccount = async () => {
+    await deleteMyAccount()
+    await signOutNow()
+  }
+
   const changePlan = async (planId) => {
     const saved = await setCompanyPlan(company.id, planId)
     setCompany((c) => (c ? { ...c, plan: saved } : c))
@@ -765,7 +773,7 @@ export default function App() {
               <span className="mark">
                 <img src={logoIcon} alt="" />
               </span>
-              <span className="brand-text">Pricr</span>
+              <span className="brand-text">{APP_NAME}</span>
             </div>
           </div>
         </header>
@@ -835,7 +843,7 @@ export default function App() {
               <img src={logoIcon} alt="" />
             </span>
             <span className="brand-text">
-              Pricr
+              {APP_NAME}
               <small>{company.businessName || 'Quote Estimator'}</small>
             </span>
           </div>
@@ -897,7 +905,7 @@ export default function App() {
               onEdit={openEditor}
               onOpenPlan={() => setSettingsPage('plan')}
               onSignOut={quickSignOut}
-              onDeleteAll={deleteAllData}
+              onDeleteAccount={deleteAccount}
             />
           </SettingsPage>
         )}
@@ -2101,7 +2109,7 @@ function Login({ invited }) {
               <span className="mark">
                 <img src={logoIcon} alt="" />
               </span>
-              <span className="brand-text">Pricr</span>
+              <span className="brand-text">{APP_NAME}</span>
             </div>
           <LangToggle />
           </div>
@@ -2140,7 +2148,7 @@ function Login({ invited }) {
             <span className="mark">
               <img src={logoIcon} alt="" />
             </span>
-            <span className="brand-text">Pricr</span>
+            <span className="brand-text">{APP_NAME}</span>
           </div>
           <LangToggle />
         </div>
@@ -2202,6 +2210,14 @@ function Login({ invited }) {
               ? tr('Already have an account? Sign in')
               : tr('New here? Create an account')}
           </button>
+          <p className="auth-legal">
+            {mode === 'signup' && <>{tr('By creating an account, you agree to our Terms and Privacy Policy.')} </>}
+            <a href={pageUrl('terms')} target="_blank" rel="noopener noreferrer">{tr('Terms')}</a>
+            {' · '}
+            <a href={pageUrl('privacy')} target="_blank" rel="noopener noreferrer">{tr('Privacy')}</a>
+            {' · '}
+            <a href={pageUrl('support')} target="_blank" rel="noopener noreferrer">{tr('Support')}</a>
+          </p>
         </div>
       </main>
     </div>
@@ -2649,7 +2665,7 @@ function Onboarding({ initial, onSave, onCancel, onReset, onSignOut, ownerId, st
               <img src={logoIcon} alt="" />
             </span>
             <span className="brand-text">
-              Pricr
+              {APP_NAME}
               <small>{form.businessName || 'Quote Estimator'}</small>
             </span>
           </div>

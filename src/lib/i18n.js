@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import es from './es'
 import pt from './pt'
+import { withAppName } from './brand'
 
 // Language switch. English text is the key: tr('Sign in') returns the
 // translation when the app is in another language and falls back to the
@@ -107,7 +108,7 @@ export function useLang() {
 
 // tr('Hello {name}', { name: 'Ana' })
 export function tr(en, vars) {
-  let s = (dict && dict[en]) ?? en
+  let s = withAppName((dict && dict[en]) ?? en)
   if (vars) s = s.replace(/\{(\w+)\}/g, (_, k) => (vars[k] ?? ''))
   return s
 }

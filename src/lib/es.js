@@ -472,6 +472,21 @@ const es = {
   "Unnamed service": "Servicio sin nombre",
   "100% leaves the price alone; 115% adds 15%.": "100% deja el precio igual; 115% suma 15%.",
   "Dollars added to each snow rate (per driveway, per sq ft, etc.). Leave blank or 0 for no change.": "Dólares que se suman a cada tarifa de nieve (por entrada, por pie cuadrado, etc.). Deja en blanco o 0 para no cambiar.",
+  "DELETE": "BORRAR",
+  "Couldn't delete your account. Check your connection and try again, or contact support.": "No se pudo eliminar tu cuenta. Revisa tu conexión e inténtalo de nuevo, o contacta a soporte.",
+  "Delete my account": "Eliminar mi cuenta",
+  "Permanently delete your login and data": "Elimina para siempre tu acceso y tus datos",
+  "This permanently deletes your login and your whole business from Pricr: services, rates, quotes and your team's access. It can't be undone.": "Esto elimina para siempre tu acceso y todo tu negocio de Pricr: servicios, tarifas, cotizaciones y el acceso de tu equipo. No se puede deshacer.",
+  "This permanently deletes your login and removes you from your team. Quotes you made stay with the business. It can't be undone.": "Esto elimina para siempre tu acceso y te quita de tu equipo. Las cotizaciones que hiciste se quedan con el negocio. No se puede deshacer.",
+  "Type {word} to confirm": "Escribe {word} para confirmar",
+  "Deleting…": "Eliminando…",
+  "Help & legal": "Ayuda y legal",
+  "Support": "Soporte",
+  "Privacy policy": "Política de privacidad",
+  "Terms of service": "Términos de servicio",
+  "By creating an account, you agree to our Terms and Privacy Policy.": "Al crear una cuenta, aceptas nuestros Términos y la Política de privacidad.",
+  "Privacy": "Privacidad",
+  "To stop contributing, delete your account in Settings.": "Para dejar de contribuir, elimina tu cuenta en Ajustes.",
 }
 
 export default es

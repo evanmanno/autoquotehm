@@ -3,6 +3,8 @@ import './settings.css'
 import { getTheme, setTheme } from './lib/theme'
 import LangToggle from './LangToggle'
 import { tr } from './lib/i18n'
+import { APP_NAME, SUPPORT_EMAIL } from './lib/brand'
+import { openPage } from './lib/appUrl'
 import { SHOW_PLANS } from './lib/plans'
 import { changePassword } from './lib/auth'
 
@@ -22,6 +24,7 @@ const ICONS = {
   doc: 'M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h8',
   percent: 'M19 5 5 19M6.5 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM17.5 20a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z',
   lock: 'M6 11h12v10H6zM8 11V7a4 4 0 0 1 8 0v4',
+  help: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01',
   chevron: 'M9 6l6 6-6 6',
 }
 
@@ -186,7 +189,7 @@ export function SettingsHub({
         />
       </Group>
 
-      <p className="saved-note">Pricr</p>
+      <p className="saved-note">{APP_NAME}</p>
     </div>
   )
 }
@@ -284,8 +287,25 @@ function ChangePassword({ email }) {
 
 // General settings: the account itself (password, sign out, delete), how the
 // app looks and which language it speaks, plus the owner's own name and plan.
-export function GeneralSettings({ isOwner, email, plan, used, onEdit, onOpenPlan, onSignOut, onDeleteAll }) {
+export function GeneralSettings({ isOwner, email, plan, used, onEdit, onOpenPlan, onSignOut, onDeleteAccount }) {
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleteText, setDeleteText] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+  const deleteWord = tr('DELETE')
+  const deleteReady = deleteText.trim().toUpperCase() === deleteWord.toUpperCase()
+  const runDelete = async () => {
+    if (deleting || !deleteReady) return
+    setDeleting(true)
+    setDeleteError('')
+    try {
+      await onDeleteAccount()
+    } catch (err) {
+      console.error('Account delete failed:', err)
+      setDeleteError(tr("Couldn't delete your account. Check your connection and try again, or contact support."))
+      setDeleting(false)
+    }
+  }
   const [theme, setThemeState] = useState(getTheme)
 
   return (
@@ -359,33 +379,58 @@ export function GeneralSettings({ isOwner, email, plan, used, onEdit, onOpenPlan
         />
       </Group>
 
-      {isOwner && (
-        <Group title={tr("Danger zone")}>
-          {!confirmDelete ? (
-            <Row
-              icon="trash"
-              title={tr("Delete my business data")}
-              sub={tr("Permanently removes your account's business info")}
-              danger
-              onClick={() => setConfirmDelete(true)}
-            />
-          ) : (
-            <div className="s-confirm">
-              <p>
-                {tr("This permanently deletes your business info, services, equipment, rates and team from Pricr, then signs you out. It can't be undone.")}
-              </p>
-              <div className="s-confirm-row">
-                <button type="button" className="btn ghost" onClick={() => setConfirmDelete(false)}>
-                  {tr("Cancel")}
-                </button>
-                <button type="button" className="btn danger" onClick={onDeleteAll}>
-                  {tr("Yes, delete everything")}
-                </button>
-              </div>
+      <Group title={tr("Help & legal")}>
+        <Row icon="help" title={tr("Support")} sub={SUPPORT_EMAIL} onClick={() => openPage('support')} />
+        <Row icon="lock" title={tr("Privacy policy")} onClick={() => openPage('privacy')} />
+        <Row icon="doc" title={tr("Terms of service")} onClick={() => openPage('terms')} />
+      </Group>
+
+      <Group title={tr("Danger zone")}>
+        {!confirmDelete ? (
+          <Row
+            icon="trash"
+            title={tr("Delete my account")}
+            sub={tr("Permanently delete your login and data")}
+            danger
+            onClick={() => setConfirmDelete(true)}
+          />
+        ) : (
+          <div className="s-confirm">
+            <p>
+              {isOwner
+                ? tr("This permanently deletes your login and your whole business from Pricr: services, rates, quotes and your team's access. It can't be undone.")
+                : tr("This permanently deletes your login and removes you from your team. Quotes you made stay with the business. It can't be undone.")}
+            </p>
+            <label className="s-delete-type">
+              <span>{tr('Type {word} to confirm', { word: deleteWord })}</span>
+              <input
+                type="text"
+                value={deleteText}
+                onChange={(e) => setDeleteText(e.target.value)}
+                autoCapitalize="characters"
+                autoComplete="off"
+              />
+            </label>
+            {deleteError && <p className="s-delete-error">{deleteError}</p>}
+            <div className="s-confirm-row">
+              <button
+                type="button"
+                className="btn ghost"
+                onClick={() => {
+                  setConfirmDelete(false)
+                  setDeleteText('')
+                  setDeleteError('')
+                }}
+              >
+                {tr("Cancel")}
+              </button>
+              <button type="button" className="btn danger" disabled={deleting || !deleteReady} onClick={runDelete}>
+                {deleting ? tr('Deleting…') : tr('Delete my account')}
+              </button>
             </div>
-          )}
-        </Group>
-      )}
+          </div>
+        )}
+      </Group>
 
     </div>
   )

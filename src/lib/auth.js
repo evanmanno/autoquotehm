@@ -50,3 +50,15 @@ export async function changePassword(email, currentPassword, newPassword) {
   const { error } = await supabase.auth.updateUser({ password: newPassword })
   if (error) throw error
 }
+
+// Permanently deletes this login and (for an owner) their business. Needs
+// supabase/migration_14_delete_account.sql. Signs out locally afterwards.
+export async function deleteMyAccount() {
+  const { error } = await supabase.rpc('delete_my_account')
+  if (error) throw error
+  try {
+    await supabase.auth.signOut({ scope: 'local' })
+  } catch {
+    // the login is already gone on the server
+  }
+}

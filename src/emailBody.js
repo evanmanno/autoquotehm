@@ -1,7 +1,8 @@
 import { formatJobWhen } from './lib/jobWhen'
+import { APP_NAME } from './lib/brand'
 import { UNIT_LABEL, money, num, qty, serviceById, serviceQuantity } from './pricing'
 
-const SIGNOFF = 'Sent from Pricr.'
+const SIGNOFF = `Sent from ${APP_NAME}.`
 
 const rule = '='.repeat(46)
 const thin = '-'.repeat(46)
